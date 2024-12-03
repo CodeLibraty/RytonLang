@@ -23,7 +23,7 @@ cd RytonLang
 
 # Запуск примера
 ./dist/ryton file.ry
-# изначально присутствует сборка под linux X86_64
+# изначально присутствует сборка под linux X86_64 в папке dist/ryton_launcher.dist/ryton :нужно запускать бинраник именно внутри этой папке потому-что все зависимости лежат там:
 ```
 
 Пример кода
@@ -36,33 +36,31 @@ func main {
     print('Hello World')
 }
 
-programm.start { 
-	main()
-}
+main()
 ```
 
 Структура проект
 ```
 RytonLang/
-├── Interpritator/     # Ядро языка :полностью работает:
-├── examples/          # Примеры кода :отсутсвует:
-├── docs/             # Документация  :отсутсвует:
-└── tools/            # Инструменты разработки :отсутсвует:
+├── Interpritator/     # Ядро языка :полностью функционирует:
+├── examples/          # Примеры кода :в разработке:
+├── docs/             # Документация  :в разработке:
+└── tools/            # Инструменты разработки :в разработке:
 ```
 
 Лицензия
 Copyright (c) 2024 DichRumpany team. См. [LICENSE](LICENSE) для деталей.
 
 Команда
-RejziDich - Lead Developer
-DichRumpany team - Core Team
+- RejziDich - Lead Developer
+- DichRumpany team - Core Team
 
 Контакты
-GitHub: RejziDich/RytonLang
-EMail:  rejzidich@gmail.com
+- GitHub: RejziDich/RytonLang
+- EMail:  rejzidich@gmail.com или rejzi@drt.com(нестабилен)
 
 Сообщество
-Site project: ryton.vercel.app
-Site team:    sitedrt.vercel.app
-Discord:      https://discord.com/invite/D2hqwn94rs
+- Site project: ryton.vercel.app
+- Site team:    sitedrt.vercel.app
+- Discord:      https://discord.com/invite/D2hqwn94rs
 

@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-
+# для сборки с помощью pyinstaller(очень медленно)
 block_cipher = None
 
 a = Analysis(['ryton_launcher.py'],
