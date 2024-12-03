@@ -1,0 +1,953 @@
+Created by PLY version 3.11 (http://www.dabeaz.com/ply)
+
+Unused terminals:
+
+    CONST
+    ELSE
+
+Grammar
+
+Rule 0     S' -> program
+Rule 1     program -> statements
+Rule 2     statements -> statement
+Rule 3     statements -> statements statement
+Rule 4     statement -> var_declaration
+Rule 5     statement -> func_declaration
+Rule 6     statement -> assignment
+Rule 7     statement -> if_statement
+Rule 8     statement -> while_statement
+Rule 9     var_declaration -> VAR IDENTIFIER ASSIGN expression
+Rule 10    func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+Rule 11    parameters -> IDENTIFIER
+Rule 12    parameters -> parameters IDENTIFIER
+Rule 13    assignment -> IDENTIFIER ASSIGN expression
+Rule 14    if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE
+Rule 15    while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+Rule 16    expression -> IDENTIFIER
+Rule 17    expression -> NUMBER
+Rule 18    expression -> STRING
+Rule 19    expression -> expression PLUS expression
+Rule 20    expression -> expression MINUS expression
+Rule 21    expression -> expression TIMES expression
+Rule 22    expression -> expression DIVIDE expression
+
+Terminals, with rules where they appear
+
+ASSIGN               : 9 13
+CONST                : 
+DIVIDE               : 22
+ELSE                 : 
+FUNC                 : 10
+IDENTIFIER           : 9 10 11 12 13 16
+IF                   : 14
+LBRACE               : 10 14 15
+LPAREN               : 10 14 15
+MINUS                : 20
+NUMBER               : 17
+PLUS                 : 19
+RBRACE               : 10 14 15
+RPAREN               : 10 14 15
+STRING               : 18
+TIMES                : 21
+VAR                  : 9
+WHILE                : 15
+error                : 
+
+Nonterminals, with rules where they appear
+
+assignment           : 6
+expression           : 9 13 14 15 19 19 20 20 21 21 22 22
+func_declaration     : 5
+if_statement         : 7
+parameters           : 10 12
+program              : 0
+statement            : 2 3
+statements           : 1 3 10 14 15
+var_declaration      : 4
+while_statement      : 8
+
+Parsing method: LALR
+
+state 0
+
+    (0) S' -> . program
+    (1) program -> . statements
+    (2) statements -> . statement
+    (3) statements -> . statements statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    program                        shift and go to state 1
+    statements                     shift and go to state 2
+    statement                      shift and go to state 3
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 1
+
+    (0) S' -> program .
+
+
+
+state 2
+
+    (1) program -> statements .
+    (3) statements -> statements . statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    $end            reduce using rule 1 (program -> statements .)
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    statement                      shift and go to state 14
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 3
+
+    (2) statements -> statement .
+
+    VAR             reduce using rule 2 (statements -> statement .)
+    FUNC            reduce using rule 2 (statements -> statement .)
+    IDENTIFIER      reduce using rule 2 (statements -> statement .)
+    IF              reduce using rule 2 (statements -> statement .)
+    WHILE           reduce using rule 2 (statements -> statement .)
+    $end            reduce using rule 2 (statements -> statement .)
+    RBRACE          reduce using rule 2 (statements -> statement .)
+
+
+state 4
+
+    (4) statement -> var_declaration .
+
+    VAR             reduce using rule 4 (statement -> var_declaration .)
+    FUNC            reduce using rule 4 (statement -> var_declaration .)
+    IDENTIFIER      reduce using rule 4 (statement -> var_declaration .)
+    IF              reduce using rule 4 (statement -> var_declaration .)
+    WHILE           reduce using rule 4 (statement -> var_declaration .)
+    $end            reduce using rule 4 (statement -> var_declaration .)
+    RBRACE          reduce using rule 4 (statement -> var_declaration .)
+
+
+state 5
+
+    (5) statement -> func_declaration .
+
+    VAR             reduce using rule 5 (statement -> func_declaration .)
+    FUNC            reduce using rule 5 (statement -> func_declaration .)
+    IDENTIFIER      reduce using rule 5 (statement -> func_declaration .)
+    IF              reduce using rule 5 (statement -> func_declaration .)
+    WHILE           reduce using rule 5 (statement -> func_declaration .)
+    $end            reduce using rule 5 (statement -> func_declaration .)
+    RBRACE          reduce using rule 5 (statement -> func_declaration .)
+
+
+state 6
+
+    (6) statement -> assignment .
+
+    VAR             reduce using rule 6 (statement -> assignment .)
+    FUNC            reduce using rule 6 (statement -> assignment .)
+    IDENTIFIER      reduce using rule 6 (statement -> assignment .)
+    IF              reduce using rule 6 (statement -> assignment .)
+    WHILE           reduce using rule 6 (statement -> assignment .)
+    $end            reduce using rule 6 (statement -> assignment .)
+    RBRACE          reduce using rule 6 (statement -> assignment .)
+
+
+state 7
+
+    (7) statement -> if_statement .
+
+    VAR             reduce using rule 7 (statement -> if_statement .)
+    FUNC            reduce using rule 7 (statement -> if_statement .)
+    IDENTIFIER      reduce using rule 7 (statement -> if_statement .)
+    IF              reduce using rule 7 (statement -> if_statement .)
+    WHILE           reduce using rule 7 (statement -> if_statement .)
+    $end            reduce using rule 7 (statement -> if_statement .)
+    RBRACE          reduce using rule 7 (statement -> if_statement .)
+
+
+state 8
+
+    (8) statement -> while_statement .
+
+    VAR             reduce using rule 8 (statement -> while_statement .)
+    FUNC            reduce using rule 8 (statement -> while_statement .)
+    IDENTIFIER      reduce using rule 8 (statement -> while_statement .)
+    IF              reduce using rule 8 (statement -> while_statement .)
+    WHILE           reduce using rule 8 (statement -> while_statement .)
+    $end            reduce using rule 8 (statement -> while_statement .)
+    RBRACE          reduce using rule 8 (statement -> while_statement .)
+
+
+state 9
+
+    (9) var_declaration -> VAR . IDENTIFIER ASSIGN expression
+
+    IDENTIFIER      shift and go to state 15
+
+
+state 10
+
+    (13) assignment -> IDENTIFIER . ASSIGN expression
+
+    ASSIGN          shift and go to state 16
+
+
+state 11
+
+    (10) func_declaration -> FUNC . IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+
+    IDENTIFIER      shift and go to state 17
+
+
+state 12
+
+    (14) if_statement -> IF . LPAREN expression RPAREN LBRACE statements RBRACE
+
+    LPAREN          shift and go to state 18
+
+
+state 13
+
+    (15) while_statement -> WHILE . LPAREN expression RPAREN LBRACE statements RBRACE
+
+    LPAREN          shift and go to state 19
+
+
+state 14
+
+    (3) statements -> statements statement .
+
+    VAR             reduce using rule 3 (statements -> statements statement .)
+    FUNC            reduce using rule 3 (statements -> statements statement .)
+    IDENTIFIER      reduce using rule 3 (statements -> statements statement .)
+    IF              reduce using rule 3 (statements -> statements statement .)
+    WHILE           reduce using rule 3 (statements -> statements statement .)
+    $end            reduce using rule 3 (statements -> statements statement .)
+    RBRACE          reduce using rule 3 (statements -> statements statement .)
+
+
+state 15
+
+    (9) var_declaration -> VAR IDENTIFIER . ASSIGN expression
+
+    ASSIGN          shift and go to state 20
+
+
+state 16
+
+    (13) assignment -> IDENTIFIER ASSIGN . expression
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 22
+
+state 17
+
+    (10) func_declaration -> FUNC IDENTIFIER . LPAREN parameters RPAREN LBRACE statements RBRACE
+
+    LPAREN          shift and go to state 25
+
+
+state 18
+
+    (14) if_statement -> IF LPAREN . expression RPAREN LBRACE statements RBRACE
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 26
+
+state 19
+
+    (15) while_statement -> WHILE LPAREN . expression RPAREN LBRACE statements RBRACE
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 27
+
+state 20
+
+    (9) var_declaration -> VAR IDENTIFIER ASSIGN . expression
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 28
+
+state 21
+
+    (16) expression -> IDENTIFIER .
+
+    PLUS            reduce using rule 16 (expression -> IDENTIFIER .)
+    MINUS           reduce using rule 16 (expression -> IDENTIFIER .)
+    TIMES           reduce using rule 16 (expression -> IDENTIFIER .)
+    DIVIDE          reduce using rule 16 (expression -> IDENTIFIER .)
+    VAR             reduce using rule 16 (expression -> IDENTIFIER .)
+    FUNC            reduce using rule 16 (expression -> IDENTIFIER .)
+    IDENTIFIER      reduce using rule 16 (expression -> IDENTIFIER .)
+    IF              reduce using rule 16 (expression -> IDENTIFIER .)
+    WHILE           reduce using rule 16 (expression -> IDENTIFIER .)
+    $end            reduce using rule 16 (expression -> IDENTIFIER .)
+    RBRACE          reduce using rule 16 (expression -> IDENTIFIER .)
+    RPAREN          reduce using rule 16 (expression -> IDENTIFIER .)
+
+
+state 22
+
+    (13) assignment -> IDENTIFIER ASSIGN expression .
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+    VAR             reduce using rule 13 (assignment -> IDENTIFIER ASSIGN expression .)
+    FUNC            reduce using rule 13 (assignment -> IDENTIFIER ASSIGN expression .)
+    IDENTIFIER      reduce using rule 13 (assignment -> IDENTIFIER ASSIGN expression .)
+    IF              reduce using rule 13 (assignment -> IDENTIFIER ASSIGN expression .)
+    WHILE           reduce using rule 13 (assignment -> IDENTIFIER ASSIGN expression .)
+    $end            reduce using rule 13 (assignment -> IDENTIFIER ASSIGN expression .)
+    RBRACE          reduce using rule 13 (assignment -> IDENTIFIER ASSIGN expression .)
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+
+state 23
+
+    (17) expression -> NUMBER .
+
+    PLUS            reduce using rule 17 (expression -> NUMBER .)
+    MINUS           reduce using rule 17 (expression -> NUMBER .)
+    TIMES           reduce using rule 17 (expression -> NUMBER .)
+    DIVIDE          reduce using rule 17 (expression -> NUMBER .)
+    VAR             reduce using rule 17 (expression -> NUMBER .)
+    FUNC            reduce using rule 17 (expression -> NUMBER .)
+    IDENTIFIER      reduce using rule 17 (expression -> NUMBER .)
+    IF              reduce using rule 17 (expression -> NUMBER .)
+    WHILE           reduce using rule 17 (expression -> NUMBER .)
+    $end            reduce using rule 17 (expression -> NUMBER .)
+    RBRACE          reduce using rule 17 (expression -> NUMBER .)
+    RPAREN          reduce using rule 17 (expression -> NUMBER .)
+
+
+state 24
+
+    (18) expression -> STRING .
+
+    PLUS            reduce using rule 18 (expression -> STRING .)
+    MINUS           reduce using rule 18 (expression -> STRING .)
+    TIMES           reduce using rule 18 (expression -> STRING .)
+    DIVIDE          reduce using rule 18 (expression -> STRING .)
+    VAR             reduce using rule 18 (expression -> STRING .)
+    FUNC            reduce using rule 18 (expression -> STRING .)
+    IDENTIFIER      reduce using rule 18 (expression -> STRING .)
+    IF              reduce using rule 18 (expression -> STRING .)
+    WHILE           reduce using rule 18 (expression -> STRING .)
+    $end            reduce using rule 18 (expression -> STRING .)
+    RBRACE          reduce using rule 18 (expression -> STRING .)
+    RPAREN          reduce using rule 18 (expression -> STRING .)
+
+
+state 25
+
+    (10) func_declaration -> FUNC IDENTIFIER LPAREN . parameters RPAREN LBRACE statements RBRACE
+    (11) parameters -> . IDENTIFIER
+    (12) parameters -> . parameters IDENTIFIER
+
+    IDENTIFIER      shift and go to state 33
+
+    parameters                     shift and go to state 34
+
+state 26
+
+    (14) if_statement -> IF LPAREN expression . RPAREN LBRACE statements RBRACE
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+    RPAREN          shift and go to state 35
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+
+state 27
+
+    (15) while_statement -> WHILE LPAREN expression . RPAREN LBRACE statements RBRACE
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+    RPAREN          shift and go to state 36
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+
+state 28
+
+    (9) var_declaration -> VAR IDENTIFIER ASSIGN expression .
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+    VAR             reduce using rule 9 (var_declaration -> VAR IDENTIFIER ASSIGN expression .)
+    FUNC            reduce using rule 9 (var_declaration -> VAR IDENTIFIER ASSIGN expression .)
+    IDENTIFIER      reduce using rule 9 (var_declaration -> VAR IDENTIFIER ASSIGN expression .)
+    IF              reduce using rule 9 (var_declaration -> VAR IDENTIFIER ASSIGN expression .)
+    WHILE           reduce using rule 9 (var_declaration -> VAR IDENTIFIER ASSIGN expression .)
+    $end            reduce using rule 9 (var_declaration -> VAR IDENTIFIER ASSIGN expression .)
+    RBRACE          reduce using rule 9 (var_declaration -> VAR IDENTIFIER ASSIGN expression .)
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+
+state 29
+
+    (19) expression -> expression PLUS . expression
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 37
+
+state 30
+
+    (20) expression -> expression MINUS . expression
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 38
+
+state 31
+
+    (21) expression -> expression TIMES . expression
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 39
+
+state 32
+
+    (22) expression -> expression DIVIDE . expression
+    (16) expression -> . IDENTIFIER
+    (17) expression -> . NUMBER
+    (18) expression -> . STRING
+    (19) expression -> . expression PLUS expression
+    (20) expression -> . expression MINUS expression
+    (21) expression -> . expression TIMES expression
+    (22) expression -> . expression DIVIDE expression
+
+    IDENTIFIER      shift and go to state 21
+    NUMBER          shift and go to state 23
+    STRING          shift and go to state 24
+
+    expression                     shift and go to state 40
+
+state 33
+
+    (11) parameters -> IDENTIFIER .
+
+    RPAREN          reduce using rule 11 (parameters -> IDENTIFIER .)
+    IDENTIFIER      reduce using rule 11 (parameters -> IDENTIFIER .)
+
+
+state 34
+
+    (10) func_declaration -> FUNC IDENTIFIER LPAREN parameters . RPAREN LBRACE statements RBRACE
+    (12) parameters -> parameters . IDENTIFIER
+
+    RPAREN          shift and go to state 42
+    IDENTIFIER      shift and go to state 41
+
+
+state 35
+
+    (14) if_statement -> IF LPAREN expression RPAREN . LBRACE statements RBRACE
+
+    LBRACE          shift and go to state 43
+
+
+state 36
+
+    (15) while_statement -> WHILE LPAREN expression RPAREN . LBRACE statements RBRACE
+
+    LBRACE          shift and go to state 44
+
+
+state 37
+
+    (19) expression -> expression PLUS expression .
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+  ! shift/reduce conflict for PLUS resolved as shift
+  ! shift/reduce conflict for MINUS resolved as shift
+  ! shift/reduce conflict for TIMES resolved as shift
+  ! shift/reduce conflict for DIVIDE resolved as shift
+    VAR             reduce using rule 19 (expression -> expression PLUS expression .)
+    FUNC            reduce using rule 19 (expression -> expression PLUS expression .)
+    IDENTIFIER      reduce using rule 19 (expression -> expression PLUS expression .)
+    IF              reduce using rule 19 (expression -> expression PLUS expression .)
+    WHILE           reduce using rule 19 (expression -> expression PLUS expression .)
+    $end            reduce using rule 19 (expression -> expression PLUS expression .)
+    RBRACE          reduce using rule 19 (expression -> expression PLUS expression .)
+    RPAREN          reduce using rule 19 (expression -> expression PLUS expression .)
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+  ! PLUS            [ reduce using rule 19 (expression -> expression PLUS expression .) ]
+  ! MINUS           [ reduce using rule 19 (expression -> expression PLUS expression .) ]
+  ! TIMES           [ reduce using rule 19 (expression -> expression PLUS expression .) ]
+  ! DIVIDE          [ reduce using rule 19 (expression -> expression PLUS expression .) ]
+
+
+state 38
+
+    (20) expression -> expression MINUS expression .
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+  ! shift/reduce conflict for PLUS resolved as shift
+  ! shift/reduce conflict for MINUS resolved as shift
+  ! shift/reduce conflict for TIMES resolved as shift
+  ! shift/reduce conflict for DIVIDE resolved as shift
+    VAR             reduce using rule 20 (expression -> expression MINUS expression .)
+    FUNC            reduce using rule 20 (expression -> expression MINUS expression .)
+    IDENTIFIER      reduce using rule 20 (expression -> expression MINUS expression .)
+    IF              reduce using rule 20 (expression -> expression MINUS expression .)
+    WHILE           reduce using rule 20 (expression -> expression MINUS expression .)
+    $end            reduce using rule 20 (expression -> expression MINUS expression .)
+    RBRACE          reduce using rule 20 (expression -> expression MINUS expression .)
+    RPAREN          reduce using rule 20 (expression -> expression MINUS expression .)
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+  ! PLUS            [ reduce using rule 20 (expression -> expression MINUS expression .) ]
+  ! MINUS           [ reduce using rule 20 (expression -> expression MINUS expression .) ]
+  ! TIMES           [ reduce using rule 20 (expression -> expression MINUS expression .) ]
+  ! DIVIDE          [ reduce using rule 20 (expression -> expression MINUS expression .) ]
+
+
+state 39
+
+    (21) expression -> expression TIMES expression .
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+  ! shift/reduce conflict for PLUS resolved as shift
+  ! shift/reduce conflict for MINUS resolved as shift
+  ! shift/reduce conflict for TIMES resolved as shift
+  ! shift/reduce conflict for DIVIDE resolved as shift
+    VAR             reduce using rule 21 (expression -> expression TIMES expression .)
+    FUNC            reduce using rule 21 (expression -> expression TIMES expression .)
+    IDENTIFIER      reduce using rule 21 (expression -> expression TIMES expression .)
+    IF              reduce using rule 21 (expression -> expression TIMES expression .)
+    WHILE           reduce using rule 21 (expression -> expression TIMES expression .)
+    $end            reduce using rule 21 (expression -> expression TIMES expression .)
+    RBRACE          reduce using rule 21 (expression -> expression TIMES expression .)
+    RPAREN          reduce using rule 21 (expression -> expression TIMES expression .)
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+  ! PLUS            [ reduce using rule 21 (expression -> expression TIMES expression .) ]
+  ! MINUS           [ reduce using rule 21 (expression -> expression TIMES expression .) ]
+  ! TIMES           [ reduce using rule 21 (expression -> expression TIMES expression .) ]
+  ! DIVIDE          [ reduce using rule 21 (expression -> expression TIMES expression .) ]
+
+
+state 40
+
+    (22) expression -> expression DIVIDE expression .
+    (19) expression -> expression . PLUS expression
+    (20) expression -> expression . MINUS expression
+    (21) expression -> expression . TIMES expression
+    (22) expression -> expression . DIVIDE expression
+
+  ! shift/reduce conflict for PLUS resolved as shift
+  ! shift/reduce conflict for MINUS resolved as shift
+  ! shift/reduce conflict for TIMES resolved as shift
+  ! shift/reduce conflict for DIVIDE resolved as shift
+    VAR             reduce using rule 22 (expression -> expression DIVIDE expression .)
+    FUNC            reduce using rule 22 (expression -> expression DIVIDE expression .)
+    IDENTIFIER      reduce using rule 22 (expression -> expression DIVIDE expression .)
+    IF              reduce using rule 22 (expression -> expression DIVIDE expression .)
+    WHILE           reduce using rule 22 (expression -> expression DIVIDE expression .)
+    $end            reduce using rule 22 (expression -> expression DIVIDE expression .)
+    RBRACE          reduce using rule 22 (expression -> expression DIVIDE expression .)
+    RPAREN          reduce using rule 22 (expression -> expression DIVIDE expression .)
+    PLUS            shift and go to state 29
+    MINUS           shift and go to state 30
+    TIMES           shift and go to state 31
+    DIVIDE          shift and go to state 32
+
+  ! PLUS            [ reduce using rule 22 (expression -> expression DIVIDE expression .) ]
+  ! MINUS           [ reduce using rule 22 (expression -> expression DIVIDE expression .) ]
+  ! TIMES           [ reduce using rule 22 (expression -> expression DIVIDE expression .) ]
+  ! DIVIDE          [ reduce using rule 22 (expression -> expression DIVIDE expression .) ]
+
+
+state 41
+
+    (12) parameters -> parameters IDENTIFIER .
+
+    RPAREN          reduce using rule 12 (parameters -> parameters IDENTIFIER .)
+    IDENTIFIER      reduce using rule 12 (parameters -> parameters IDENTIFIER .)
+
+
+state 42
+
+    (10) func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN . LBRACE statements RBRACE
+
+    LBRACE          shift and go to state 45
+
+
+state 43
+
+    (14) if_statement -> IF LPAREN expression RPAREN LBRACE . statements RBRACE
+    (2) statements -> . statement
+    (3) statements -> . statements statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    statements                     shift and go to state 46
+    statement                      shift and go to state 3
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 44
+
+    (15) while_statement -> WHILE LPAREN expression RPAREN LBRACE . statements RBRACE
+    (2) statements -> . statement
+    (3) statements -> . statements statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    statements                     shift and go to state 47
+    statement                      shift and go to state 3
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 45
+
+    (10) func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE . statements RBRACE
+    (2) statements -> . statement
+    (3) statements -> . statements statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    statements                     shift and go to state 48
+    statement                      shift and go to state 3
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 46
+
+    (14) if_statement -> IF LPAREN expression RPAREN LBRACE statements . RBRACE
+    (3) statements -> statements . statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    RBRACE          shift and go to state 49
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    statement                      shift and go to state 14
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 47
+
+    (15) while_statement -> WHILE LPAREN expression RPAREN LBRACE statements . RBRACE
+    (3) statements -> statements . statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    RBRACE          shift and go to state 50
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    statement                      shift and go to state 14
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 48
+
+    (10) func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements . RBRACE
+    (3) statements -> statements . statement
+    (4) statement -> . var_declaration
+    (5) statement -> . func_declaration
+    (6) statement -> . assignment
+    (7) statement -> . if_statement
+    (8) statement -> . while_statement
+    (9) var_declaration -> . VAR IDENTIFIER ASSIGN expression
+    (10) func_declaration -> . FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE
+    (13) assignment -> . IDENTIFIER ASSIGN expression
+    (14) if_statement -> . IF LPAREN expression RPAREN LBRACE statements RBRACE
+    (15) while_statement -> . WHILE LPAREN expression RPAREN LBRACE statements RBRACE
+
+    RBRACE          shift and go to state 51
+    VAR             shift and go to state 9
+    FUNC            shift and go to state 11
+    IDENTIFIER      shift and go to state 10
+    IF              shift and go to state 12
+    WHILE           shift and go to state 13
+
+    statement                      shift and go to state 14
+    var_declaration                shift and go to state 4
+    func_declaration               shift and go to state 5
+    assignment                     shift and go to state 6
+    if_statement                   shift and go to state 7
+    while_statement                shift and go to state 8
+
+state 49
+
+    (14) if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .
+
+    VAR             reduce using rule 14 (if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .)
+    FUNC            reduce using rule 14 (if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .)
+    IDENTIFIER      reduce using rule 14 (if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .)
+    IF              reduce using rule 14 (if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .)
+    WHILE           reduce using rule 14 (if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .)
+    $end            reduce using rule 14 (if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .)
+    RBRACE          reduce using rule 14 (if_statement -> IF LPAREN expression RPAREN LBRACE statements RBRACE .)
+
+
+state 50
+
+    (15) while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .
+
+    VAR             reduce using rule 15 (while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .)
+    FUNC            reduce using rule 15 (while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .)
+    IDENTIFIER      reduce using rule 15 (while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .)
+    IF              reduce using rule 15 (while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .)
+    WHILE           reduce using rule 15 (while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .)
+    $end            reduce using rule 15 (while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .)
+    RBRACE          reduce using rule 15 (while_statement -> WHILE LPAREN expression RPAREN LBRACE statements RBRACE .)
+
+
+state 51
+
+    (10) func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .
+
+    VAR             reduce using rule 10 (func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .)
+    FUNC            reduce using rule 10 (func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .)
+    IDENTIFIER      reduce using rule 10 (func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .)
+    IF              reduce using rule 10 (func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .)
+    WHILE           reduce using rule 10 (func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .)
+    $end            reduce using rule 10 (func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .)
+    RBRACE          reduce using rule 10 (func_declaration -> FUNC IDENTIFIER LPAREN parameters RPAREN LBRACE statements RBRACE .)
+
+WARNING: 
+WARNING: Conflicts:
+WARNING: 
+WARNING: shift/reduce conflict for PLUS in state 37 resolved as shift
+WARNING: shift/reduce conflict for MINUS in state 37 resolved as shift
+WARNING: shift/reduce conflict for TIMES in state 37 resolved as shift
+WARNING: shift/reduce conflict for DIVIDE in state 37 resolved as shift
+WARNING: shift/reduce conflict for PLUS in state 38 resolved as shift
+WARNING: shift/reduce conflict for MINUS in state 38 resolved as shift
+WARNING: shift/reduce conflict for TIMES in state 38 resolved as shift
+WARNING: shift/reduce conflict for DIVIDE in state 38 resolved as shift
+WARNING: shift/reduce conflict for PLUS in state 39 resolved as shift
+WARNING: shift/reduce conflict for MINUS in state 39 resolved as shift
+WARNING: shift/reduce conflict for TIMES in state 39 resolved as shift
+WARNING: shift/reduce conflict for DIVIDE in state 39 resolved as shift
+WARNING: shift/reduce conflict for PLUS in state 40 resolved as shift
+WARNING: shift/reduce conflict for MINUS in state 40 resolved as shift
+WARNING: shift/reduce conflict for TIMES in state 40 resolved as shift
+WARNING: shift/reduce conflict for DIVIDE in state 40 resolved as shift

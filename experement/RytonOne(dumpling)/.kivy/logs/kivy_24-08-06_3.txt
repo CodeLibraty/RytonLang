@@ -1,0 +1,55 @@
+[INFO   ] Logger: Record log in /storage/emulated/0/Download/project/RytonOne(dumpling)/.kivy/logs/kivy_24-08-06_3.txt
+[INFO   ] Kivy: v2.2.1
+[INFO   ] Kivy: Installed at "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.11/site-packages/kivy/__init__.py"
+[INFO   ] Python: v3.11.4 (main, Sep 30 2023, 10:54:38) [GCC 11.4.0]
+[INFO   ] Python: Interpreter at "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/bin/python3"
+[INFO   ] Logger: Purge log fired. Processing...
+[INFO   ] Logger: Purge finished!
+[INFO   ] Factory: 190 symbols loaded
+[INFO   ] Image: Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] Window: Provider: sdl2
+[INFO   ] GL: Using the "OpenGL ES 2" graphics system
+[INFO   ] GL: Backend used <sdl2>
+[INFO   ] GL: OpenGL version <b'OpenGL ES 3.2 v1.r26p0-01eac0.035aefc9426b37ec2259de8e3dc4e984'>
+[INFO   ] GL: OpenGL vendor <b'ARM'>
+[INFO   ] GL: OpenGL renderer <b'Mali-G52'>
+[INFO   ] GL: OpenGL parsed version: 3, 2
+[INFO   ] GL: Texture max size <8192>
+[INFO   ] GL: Texture max units <16>
+[INFO   ] Window: auto add sdl2 input provider
+[INFO   ] Window: virtual keyboard not allowed, single mode, not docked
+[INFO   ] Audio: Providers: audio_sdl2 (audio_android, audio_ffpyplayer ignored)
+[WARNING] stderr: Traceback (most recent call last):
+[WARNING] stderr:   File "/storage/emulated/0/Download/project/RytonOne(dumpling)/RyApp.py", line 199, in <module>
+[WARNING] stderr:     GameApp().run()
+[WARNING] stderr:   File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.11/site-packages/kivy/app.py", line 955, in run
+[WARNING] stderr:     self._run_prepare()
+[WARNING] stderr:   File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.11/site-packages/kivy/app.py", line 925, in _run_prepare
+[WARNING] stderr:     root = self.build()
+[WARNING] stderr:            ^^^^^^^^^^^^
+[WARNING] stderr:   File "/storage/emulated/0/Download/project/RytonOne(dumpling)/RyApp.py", line 194, in build
+[WARNING] stderr:     set_scene(example_scene)
+[WARNING] stderr:   File "/storage/emulated/0/Download/project/RytonOne(dumpling)/RyApp.py", line 106, in set_scene
+[WARNING] stderr:     current_scene()
+[WARNING] stderr:   File "/storage/emulated/0/Download/project/RytonOne(dumpling)/RyApp.py", line 156, in example_scene
+[WARNING] stderr:     player = create_game_object(100, 100, 50, 50, color=(0, 1, 0), image_path='player.png')
+[WARNING] stderr:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "/storage/emulated/0/Download/project/RytonOne(dumpling)/RyApp.py", line 42, in create_game_object
+[WARNING] stderr:     'image': load_texture(image_path) if image_path else None,
+[WARNING] stderr:              ^^^^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "/storage/emulated/0/Download/project/RytonOne(dumpling)/RyApp.py", line 19, in load_texture
+[WARNING] stderr:     texture_cache[image_path] = CoreImage(image_path).texture
+[WARNING] stderr:                                 ^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.11/site-packages/kivy/core/image/__init__.py", line 561, in __init__
+[WARNING] stderr:     self.filename = arg
+[WARNING] stderr:     ^^^^^^^^^^^^^
+[WARNING] stderr:   File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.11/site-packages/kivy/core/image/__init__.py", line 754, in _set_filename
+[WARNING] stderr:     image = ImageLoader.load(
+[WARNING] stderr:             ^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.11/site-packages/kivy/core/image/__init__.py", line 454, in load
+[WARNING] stderr:     ext = imghdr.what(filename) or ext
+[WARNING] stderr:           ^^^^^^^^^^^^^^^^^^^^^
+[WARNING] stderr:   File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.11/imghdr.py", line 24, in what
+[WARNING] stderr:     location = file.tell()
+[WARNING] stderr:                ^^^^^^^^^
+[WARNING] stderr: AttributeError: 'NoneType' object has no attribute 'tell'

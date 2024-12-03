@@ -1,0 +1,8 @@
+# Виртуальное окружение
+Interpritator/ryton_venv/
+
+# Скомпилированные файлы и дистрибутивы
+dist/
+
+# Zig окружение
+Interpritator/langs/!ZigEnv/
