@@ -56,7 +56,7 @@ Copyright (c) 2024 DichRumpany team. См. [LICENSE](LICENSE) для детал�
 - DichRumpany team - Core Team
 
 Контакты
-- GitHub: RejziDich/RytonLang
+- GitHub: https://github.com/Rejzi-dich/RytonLang
 - EMail:  rejzidich@gmail.com или rejzi@drt.com(нестабилен)
 
 Сообщество
