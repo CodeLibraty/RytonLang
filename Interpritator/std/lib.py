@@ -2,8 +2,6 @@ import os
 import sys
 import subprocess
 import webbrowser
-from pyfiglet import Figlet
-import cython
 import importlib
 import platform
 import inspect
@@ -11,31 +9,24 @@ import time
 import json
 from typing import Any
 
-def clear(cmd='all'):
-    if cmd == 'all':
+def clear(cmd='auto'):
+    if cmd == 'auto':
         if platform.system() == 'Windows':
             os.system('cls')
         elif platform.system() == 'Linux':
             os.system('clear')
         elif platform.system() == 'Darwin':
             os.system('clear')
-
-    if cmd in ['winows', 'nt', 'win32']:
-        os.system('cls')
-
-    elif cmd in ['linux', 'unix', 'macos', 'osx', 'darwin']:
-        os.system('clear')
-
     else:
-        print(f"os {os} not found")
-        sys.exit(2)
+        if cmd in ['winows', 'nt', 'win32']:
+            os.system('cls')
 
-def ascii(text=None):
-    if not text:
-        pass
-    else:
-        fig = Figlet(font='slant')
-        print(fig.renderText(text))
+        elif cmd in ['linux', 'unix', 'macos', 'osx', 'darwin']:
+            os.system('clear')
+
+        else:
+            print(f"os {os} not found")
+            sys.exit(2)
 
 def web_open(link=False):
     if link == False:

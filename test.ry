@@ -1,0 +1,19 @@
+
+module import {
+	std.lib
+}
+
+trash_cleaner = true
+
+sus = 'asas'
+pack fuck {
+	func asas {
+		sid = 'asas'
+	}
+	func bitch {
+		sas = 'asas'
+		print(sid)
+	}
+}
+
+fuck.bitch()

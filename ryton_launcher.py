@@ -15,6 +15,11 @@ def setup_ryton_environment():
     # Добавляем пути для поиска модулей
     sys.path.insert(0, os.path.join(base_path, 'Interpritator'))
     sys.path.insert(0, os.path.join(base_path, 'Interpritator/std'))
+    
+    # Добавляем текущую директорию для поиска пакетов
+    current_dir = os.getcwd()
+    os.environ['RYTON_PACKAGES'] = current_dir
+    sys.path.insert(0, current_dir)
 
 def main():
     setup_ryton_environment()

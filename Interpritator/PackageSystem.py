@@ -20,13 +20,16 @@ class PackageSystem:
         with open(file_path, 'r') as file:
             package_code = file.read()
 
-        # Создаем новый экземпляр SharpyLang для выполнения кода пакета
-        package_sharpy = SharpyLang()
-        package_sharpy.execute(package_code)
+        # Создаем отдельный словарь для сбора экспортов
+        namespace = {}
         
-        # Собираем экспортированные элементы
-        exports = {name: value for name, value in package_sharpy.globals.items() 
-                   if not name.startswith('__')}
+        # Выполняем код пакета в этом пространстве имен
+        exec(sharpy_instance.transform_syntax(package_code), namespace)
+        
+        # Собираем только пользовательские определения
+        exports = {name: value for name, value in namespace.items() 
+                if not name.startswith('__') and not name in globals()}
         
         self.loaded_packages[package_name] = exports
         return exports
+

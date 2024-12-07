@@ -7,11 +7,9 @@ import threading
 import traceback
 import inspect
 import difflib
-import sqlite3
 import pstats
-import cython
-
 import random
+
 import types
 import time
 import dis
@@ -36,70 +34,79 @@ from .PackageSystem import PackageSystem
 TRASH_CLEANER_RE  = re.compile(r'trash_cleaner\s*=\s*(true|false)')
 
 
+class UserContext:
+    def __init__(self):
+        self._vars = {}
+        self._funcs = {} 
+    def __getattr__(self, name):
+        if name in self._vars:
+            return self._vars[name]
+        if name in self._funcs:
+            return self._funcs[name]
+        raise AttributeError(f"'{name}' not found")
+    
+    def __setattr__(self, name, value):
+        if name in ('_vars', '_funcs'):
+            super().__setattr__(name, value)
+        elif callable(value):
+            self._funcs[name] = value
+        else:
+            self._vars[name] = value
+
 class SharpyLang:
     __slots__ = (
         'globals', 'effect_registry', 'pragma_handler',
         'error_handler', 'static_typing', 'syntax_analyzer',
         'compiled_functions', 'package_system', 'dsls',
-        'sql_connection', 'sql_cursor', 'imported_libs', 
+        'PACKAGE_IMPORT_RE', 'imported_libs', 'user_vars',
         'transformation_cache', 'IMPORT_RE', 'compiled_cache', 
-        'memory_manager', 'trash_cleaner', 'module_mapping'
+        'memory_manager', 'trash_cleaner', 'module_mapping',
+        'user_context'
     )
 
     def __init__(self):
-        self.static_typing = False
-        self.globals = {}
-        self.sql_connection = sqlite3.connect(':memory:')
-        self.sql_cursor = self.sql_connection.cursor()
         self.imported_libs = set()
         self.transformation_cache = {}
-        self.compiled_cache = {}
-        self.IMPORT_RE = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
+        self.compiled_functions   = {}
+        self.compiled_cache       = {}
+        self.user_vars            = {}
+        self.globals              = {}
+        self.dsls                 = {}
+
+        self.static_typing = False
         self.trash_cleaner = True
-        self.compiled_functions = {}
-        self.dsls = {}
-        self.error_handler = RytonErrorHandler()
-        self.effect_registry = EffectRegistry()
-        self.syntax_analyzer = SyntaxAnalyzer()
-        self.pragma_handler = PragmaHandler()
-        self.package_system = PackageSystem()
-        self.memory_manager = MemoryManager()
-        self.module_mapping = {
-            'langs': 'langs',
-            'langs.Zig': 'langs.Zig',
-            'std': 'std',
-            'std.UpIO': 'std.UpIO',
-            'std.Rask': 'std.Rask',
-            'std.RytonDB': 'std.RytonDB',
-            'std.Terminal': 'std.Terminal',
-            'std.JITCompiler': 'std.JITCompiler',
-            'std.RuVix': 'std.RuVix',
-            'std.Path': 'std.Path',
-            'std.Files': 'std.Files',
-            'std.String': 'std.String',
-            'std.DateTime': 'std.DateTime',
-            'std.Archive': 'std.Archive',
-            'std.DeBugger': 'std.DeBugger',
-            'std.ErroRize': 'std.ErroRize',
-            'std.ParallelComputing': 'std.ParallelComputing',
-            'std.BigNumMath': 'std.BigNumMath',
-            'std.RuVixCore': 'std.RuvVixCore',
-            'std.Algorithm': 'std.Algorithm',
-            'std.HyperConfigFormat': 'std.HyperConfigFormat',
-            'std.System': 'std.System',
-            'std.DocTools': 'std.DocTools',
-            'std.MatplotUp': 'std.MatplotUp',
-            'std.RuVixEffects': 'std.RuVixEffects',
-            'std.NeuralNet': 'std.NeuralNet',
-            'std.Media': 'std.Media',
-            'std.NetWorker': 'std.NetWorker',
-            'std.Tuix': 'std.Tuix',
-            'std.MetaTable': 'std.MetaTable',
-            'std.lib': 'std.lib',
-            'std.ColoRize': 'std.ColoRize',
-            'std.RunTimer': 'std.RunTimer',
-            'std.DSL': 'std.DSL',
-            'std.ProgRessing': 'std.ProgRessing',
+
+        self.IMPORT_RE         = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
+        self.PACKAGE_IMPORT_RE = re.compile(r'package\s+import\s*\{([\s\S]*?)\}')
+
+        self.error_handler    = RytonErrorHandler()
+        self.effect_registry  = EffectRegistry()
+        self.syntax_analyzer  = SyntaxAnalyzer()
+        self.pragma_handler   = PragmaHandler()
+        self.package_system   = PackageSystem()
+        self.memory_manager   = MemoryManager()
+        self.user_context     = UserContext()
+        self.module_mapping   = {
+            'langs': 'langs',          'langs.Zig': 'langs.Zig',
+            'std':   'std',
+
+            'std.HyperConfigFormat':   'std.HyperConfigFormat',
+            'std.RuVix.Effects':       'std.RuVix.Effects',
+
+            'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
+            'std.UpIO':        'std.UpIO',         'std.Rask':        'std.Rask',
+            'std.RytonDB':     'std.RytonDB',      'std.Terminal':    'std.Terminal',
+            'std.JITCompiler': 'std.JITCompiler',  'std.RuVix':       'std.RuVix',
+            'std.Path':        'std.Path',         'std.Files':       'std.Files',
+            'std.String':      'std.String',       'std.DateTime':    'std.DateTime',
+            'std.Archive':     'std.Archive',      'std.DeBugger':    'std.DeBugger',
+            'std.ErroRize':    'std.ErroRize',     'std.RuVixCore':   'std.RuvVixCore',
+            'std.Algorithm':   'std.Algorithm',    'std.System':      'std.System',
+            'std.DocTools':    'std.DocTools',     'std.MatplotUp':   'std.MatplotUp',
+            'std.NeuralNet':   'std.NeuralNet',    'std.Media':       'std.Media',
+            'std.NetWorker':   'std.NetWorker',    'std.Tuix':        'std.Tuix',
+            'std.MetaTable':   'std.MetaTable',    'std.ProgRessing': 'std.ProgRessing',
+            'std.ColoRize':    'std.ColoRize',     'std.RunTimer':    'std.RunTimer',
         }
 
         # Настройки сборщика мусора
@@ -123,7 +130,6 @@ class SharpyLang:
         except ImportError as e:
             print(f"Import Error: {e}")
 
-    @cython.ccall
     @lru_cache(maxsize=128)
     def compile_to_bytecode(self, func_name, func_code):
         try:
@@ -171,7 +177,6 @@ class SharpyLang:
         )
         return new_code
 
-    @cython.ccall
     @lru_cache(maxsize=128)
     def call_compiled_function(self, func_name, *args, **kwargs):
         if func_name in self.compiled_functions:
@@ -224,7 +229,6 @@ def printf(text, end=""):
             code = code.replace(key, block)
         return code
 
-    @cython.ccall
     @lru_cache(maxsize=128)
     def transform_syntax(self, code):
 
@@ -234,25 +238,20 @@ def printf(text, end=""):
         # Потом Уже проверяем синтаксис
         self.syntax_analyzer.analyze(code)
 
+        # Обработка импортов библиотек
+        code = self.IMPORT_RE.sub(self.process_imports, code)
+        code = self.PACKAGE_IMPORT_RE.sub(self.process_package_imports, code)
+
         # Кэширование трансформаций
         code_hash = hash(code)
         if code_hash in self.transformation_cache:
             return self.transformation_cache[code_hash]
-
-        code = self.IMPORT_RE.sub(self.process_imports, code)
 
         # Обработка static_typing
         match = re.search(r'static_typing\s*=\s*(true|false)', code)
         if match:
             self.static_typing = match.group(1) == 'true'
             code = re.sub(r'static_typing\s*=\s*(true|false)', '', code)
-
-        # Обработка импортов библиотек
-        self.IMPORT_RE = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
-        # Обработка импорта пакетов
-        package_import_re = re.compile(r'package\s+import\s*\{([\s\S]*?)\}')
-
-#        code = package_import_re.sub(self.process_package_import, code)
 
         # Обработка trash_cleaner
         match = TRASH_CLEANER_RE.search(code)
@@ -311,11 +310,14 @@ def printf(text, end=""):
         code = '\n'.join(transformed_lines)
 
         replacements2 = {
-            'noop': 'pass',
-            'true': 'True',
+            'noop':  'pass',
+#            'this.':  'self.',
+            'nil':   'None',
+            'null':  'None',
+            'true':  'True',
             'false': 'False',
-            'none': 'None',
-            '&': 'and',
+            'none':  'None',
+            '&':  'and',
             '//': '#',
         }
 
@@ -407,15 +409,16 @@ def printf(text, end=""):
     def optimize_string_concat(*strings):
         return ''.join(strings)
 
+    def import_package(self, package_name):
+        exports = self.package_system.load_package(package_name, self)
+        module = type('Package', (), exports)
+        # Создаём модуль и сразу возвращаем его
+        return module
+
     @lru_cache(maxsize=128)
     def process_imports(self, match):
         imports = match.group(1).split()
         python_imports = ['']
-#home = osystem.path.expanduser('~')
-#module_path_x = f'{home}/.local/lib/ryton1.0/modules/'
-#system.path.insert(0, module_path_x)
-#osystem.chdir(module_path_x)
-#''']
 
         for imp in imports:
             imp = imp.strip()
@@ -465,10 +468,9 @@ def printf(text, end=""):
 
         return ''.join(python_imports)
 
-    @lru_cache(maxsize=128)
-    def process_package_import(self, match):
+    def process_package_imports(self, match):
         imports = match.group(1).split()
-        python_imports = ['']
+        python_imports = ['system.path.insert(0, osystem.getcwd())\n']
 
         for imp in imports:
             imp = imp.strip()
@@ -480,37 +482,26 @@ def printf(text, end=""):
                 ryton_module = imp
                 alias = None
 
-            # Разделяем путь к модулю и имя импортируемого объекта
             module_parts = ryton_module.split('.')
-            package_path = '.'.join(module_parts[:-1])
+            module_path = '.'.join(module_parts[:-1])
             import_name = module_parts[-1]
 
-            if package_path in self.module_mapping:
-                python_module = self.module_mapping[package_path]
-
-                if '.' in python_module:
-                    module, submodule = python_module.split('.', 1)
-                    if alias:
-                        python_imports.append(f"from {module} import {submodule} as {alias}\n")
-                    else:
-                        if import_name != submodule: 
-                            python_imports.append(f"from {python_module} import {import_name}\n")
-
+            if '.' in module_path:
+                module, submodule = module_path.split('.', 1)
+                if alias:
+                    python_imports.append(f"from {module} import {submodule} as {alias}\n")
                 else:
-                    if alias:
-                        python_imports.append(f"from {python_module} import {import_name} as {alias}\n")
-                    else:
-                        python_imports.append(f"from {python_module} import {import_name}\n")
-
-                self.imported_libs.add(package_path)
+                    if import_name != submodule:
+                        python_imports.append(f"from {module_path} import {import_name}\n")
             else:
-
-                print(f"PackageError: Package '{package_path}' not found")
-                sys.exit(2)
+                if alias:
+                    python_imports.append(f"from {module_path} import {import_name} as {alias}\n")
+                else:
+                    python_imports.append(f"from {module_path} import {import_name}\n")
 
         return ''.join(python_imports)
 
-    @cython.ccall
+
     def execute(self, code):
         try:
             # Трансформируем синтаксис перед парсингом
@@ -519,7 +510,8 @@ def printf(text, end=""):
             imports = '''
 from functools import *
 from typing import *
-from stdFunction import Memory, Parallel
+from stdFunction import Parallel, Memory
+
 import os as osystem
 import sys as system
 import time as timexc
@@ -527,7 +519,6 @@ import threading
 import asyncio
 
 parallel = Parallel().parallel()
-
 
             '''
 
@@ -542,11 +533,13 @@ parallel = Parallel().parallel()
 
             # Выполняем скомпилированный код
             globals_dict = {
-                'sharpy': self,
                 'gc': gc,
                 'compile_to_bytecode': self.compile_to_bytecode_decorator,
-                'self': self
+                'self': self,
+                'this': self.user_context,
+                'import_package': self.import_package  # Добавляем функцию импорта
             }
+            globals_dict.update(self.globals)
 
             try:
                 exec(self.compiled_cache[code_hash], globals_dict)
@@ -561,6 +554,8 @@ parallel = Parallel().parallel()
                 else:
                     error = RytonError(str(e), None, None, code)
                 self.error_handler.handle_error(error, code)
+
+            self.globals.update(globals_dict)
 
             if self.static_typing:
                 # Добавляем проверку типов перед выполнением функции
@@ -579,79 +574,17 @@ parallel = Parallel().parallel()
         except Exception as e:
             print(f'• {e}\n This Error \033[36m\033[1mbecause\033[0m of a bug in the language\n Please report it on GitHub :: \033[34m\033[4mhttps://github.com/RejziDich/RytonLang/issues\033[0m')
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     RytonOne = SharpyLang()
 
     test_code = '''
 module import {
-    std.Table
-    std.Terminal
+    std.lib
 }
 
 trash_cleaner = true
 
-func main {
-    // Создаем таблицу с данными о сотрудниках
-    table = Table()
-    table.create(['Name', 'Position', 'Salary', 'Department'])
-
-    // Добавляем данные
-    table.add_rows([
-        ['Alex', 'Developer', '75000', 'IT'],
-        ['Maria', 'Designer', '65000', 'Creative'],
-        ['John', 'Manager', '85000', 'Management'],
-        ['Sarah', 'Developer', '78000', 'IT'],
-        ['Mike', 'Designer', '63000', 'Creative']
-    ])
-
-    // Настраиваем стиль отображения
-    table.style({
-        border: '║',
-        header_color: 'cyan',
-        row_color: 'green',
-        alignment: 'center'
-    })
-
-    // Выводим исходную таблицу
-    term = Terminal()
-    term.rule("Original Table")
-    table.display()
-
-    // Фильтруем разработчиков
-    table.filter('Position', x => x == 'Developer')
-    term.rule("Only Developers")
-    table.display()
-
-    // Сортируем по зарплате
-    table.sort('Salary', reverse=true)
-    term.rule("Sorted by Salary")
-    table.display()
-
-    // Добавляем новый столбец с бонусами
-    bonuses = ['5000', '7000', '4000', '6000', '5500']
-    table.add_column('Bonus', bonuses)
-    term.rule("Added Bonuses")
-    table.display()
-
-    // Получаем статистику по зарплатам
-    stats = table.stats('Salary')
-    term.panel(f"""
-    Salary Statistics:
-    Average: {stats.mean}
-    Maximum: {stats.max}
-    Minimum: {stats.min}
-    Count: {stats.count}
-    """, "Salary Analysis")
-
-    // Сохраняем результаты
-    table.to_csv('employees.csv')
-    table.to_html('employees.html')
-}
-
-// Запускаем программу
-main()
-
-
+print('test')
 
     '''
 

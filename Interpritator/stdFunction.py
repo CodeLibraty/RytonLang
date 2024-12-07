@@ -3,6 +3,7 @@ import rich
 from rich.table import Table as RichTable
 from rich.console import Console
 from typing import List, Dict, Any, Callable
+from PackageSystem import PackageSystem
 
 class Table:
     def __init__(self):

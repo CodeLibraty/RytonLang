@@ -453,17 +453,31 @@ def transform_parallel_sub(self, code):
 
 #    return re.sub(r'([ \t]*)event \s*(\w+)\s* -> \s*(\w+)\s* {\s*([\s\S]*?)\s*}', r'\n\1event \2 -> \3 {\4}', code)
 
+def transform_user_self(self, code):
+    def replace_in_class(match):
+        class_def = match.group(0)
+        # Заменяем self на this только внутри pack/class определений
+        if 'pack' in class_def:
+            return re.sub(r'\bself\b', 'this', class_def)
+        return class_def
+
+    return re.sub(r'pack.*?{.*?}', replace_in_class, code, flags=re.DOTALL)
+
 @lru_cache(maxsize=128)
 def transform_import_modules(self, code):
     def replace_module(match):
         module = match.group(1)
         sub = match.group(2)
         sub_modules = match.group(3)
-        
+
+        # Для .ry файлов
+        if os.path.exists(f"{module}.ry"):
+            return f"__import_package('{module}')"
+
         # Обработка множественных подмодулей
         sub_modules = re.sub(r'\|', ',', sub_modules)
         sub_modules = re.sub(r'/', '.', sub_modules)
-        
+
         # Обработка алиасов
         if ':' in sub_modules:
             imports = []

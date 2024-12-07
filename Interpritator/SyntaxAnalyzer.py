@@ -1,6 +1,5 @@
 from functools import lru_cache
 
-import cython
 import re
 
 from .ErrorHandler import *
@@ -70,7 +69,6 @@ class SyntaxAnalyzer:
     #            print(f"Error: Exception in handle_error: {type(e)} - {str(e)}")
             self.error_handler.handle_error( str(e), original_code)
 
-    @cython.ccall
     def check_syntax(self, code):
         try:
             self.check_keywords(code)
