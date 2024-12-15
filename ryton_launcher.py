@@ -26,7 +26,7 @@ def main():
     ryton = SharpyLang()
     
     if len(sys.argv) > 1:
-        with open(sys.argv[1], 'r') as f:
+        with open(sys.argv[1], 'r', encoding='utf-8') as f:
             code = f.read()
             ryton.execute(code)
     else:

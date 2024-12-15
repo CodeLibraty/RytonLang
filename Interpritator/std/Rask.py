@@ -4,7 +4,6 @@ import dask.dataframe as dd
 import dask.array as da
 from dask.distributed import Client, LocalCluster
 from typing import Any, List, Dict, Callable
-import numpy as np
 
 class DistributedComputing:
     def __init__(self):

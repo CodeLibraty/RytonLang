@@ -1,0 +1,12 @@
+
+module import {
+	std.Terminal
+}
+
+trash_cleaner = true
+
+func main {
+	print('Hello Ryton Bundle Builder!')
+}
+
+main()

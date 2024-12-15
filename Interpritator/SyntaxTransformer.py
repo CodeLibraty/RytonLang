@@ -390,6 +390,17 @@ def transform_func3(self, code):
 def transform_pylib(self, code):
     return re.sub(r'pylib: \s*(\w+)\s*', r'import \1\n', code)
 
+def transform_jvmlib(self, code):
+    def replace_jvmlib(match):
+        module_path = match.group(1)
+        alias = match.group(2)
+        return f"""
+if not isJVMStarted():
+    startJVM(getDefaultJVMPath())
+{alias} = JPackage('{module_path}')
+"""
+    return re.sub(r'jvmlib:\s*([^\s]+)\s+as\s+(\w+)', replace_jvmlib, code)
+
 @lru_cache(maxsize=128)
 def transform_elerr(self, code):
     return re.sub(r'try {\s*(.*?)\s*} elerr {\s*(.*?)\s*}', r'try: \1 except: \2', code)
@@ -451,17 +462,33 @@ def transform_contracts_body(self, code):
 def transform_parallel_sub(self, code):
     return re.sub(r'([ \t]*)parallel {\s*([\s\S]*?)\s*}', r'\n\1parallel {\2}', code)
 
-#    return re.sub(r'([ \t]*)event \s*(\w+)\s* -> \s*(\w+)\s* {\s*([\s\S]*?)\s*}', r'\n\1event \2 -> \3 {\4}', code)
-
 def transform_user_self(self, code):
-    def replace_in_class(match):
-        class_def = match.group(0)
-        # Заменяем self на this только внутри pack/class определений
-        if 'pack' in class_def:
-            return re.sub(r'\bself\b', 'this', class_def)
-        return class_def
+    # Ищем все классы
+    matches = list(re.finditer(r'pack\s+(\w+)\s*{', code))
+    
+    # Идем с конца, чтобы не сбить позиции при замене
+    for match in reversed(matches):
+        class_name = match.group(1)
+        start = match.start()
+        
+        # Находим закрывающую скобку для этого класса
+        bracket_count = 1
+        pos = start + match.group(0).count('{')
+        
+        while bracket_count > 0 and pos < len(code):
+            if code[pos] == '{':
+                bracket_count += 1
+            elif code[pos] == '}':
+                bracket_count -= 1
+            pos += 1
+            
+        # Заменяем this в найденном блоке
+        class_block = code[start:pos]
+        new_block = class_block.replace('this', class_name)
+        code = code[:start] + new_block + code[pos:]
+    
+    return code
 
-    return re.sub(r'pack.*?{.*?}', replace_in_class, code, flags=re.DOTALL)
 
 @lru_cache(maxsize=128)
 def transform_import_modules(self, code):
@@ -645,17 +672,21 @@ def transform_struct(self, code):
 
     return re.sub(r'struct\s+(\w+)\s*\{([\s\S]*?)\}', replace_struct, code, flags=re.MULTILINE)
 
-def transform_clib_import(self, code):
+def transform_clib(self, code):
     def replace_clib(match):
         lib_name = match.group(1)
+        alias = match.group(2)
         return f"""
-result = CythonBridge.compile_inline('''
-cdef extern from "{lib_name}.h":
-    pass
+ffi = FFI()
+ffi.cdef('''
+    int printf(const char *format, ...);
+    void *malloc(size_t size);
+    void free(void *ptr);
+    int rand(void);
 ''')
+{alias} = ffi.dlopen("{lib_name}.so")
 """
-
-    return re.sub(r'clib: \s*(\w+)\s*', replace_clib, code)
+    return re.sub(r'clib:\s*([^\s]+)\s+as\s+(\w+)', replace_clib, code)
 
 def transform_chain(self, code):
     def replace_chain(match):

@@ -7,12 +7,75 @@ import time
 import sys
 import os
 
+
+class InteractiveSession:
+    def __init__(self, command):
+        self.process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+            text=True
+        )
+        
+    def execute(self, command):
+        self.process.stdin.write(f"{command}\n")
+        self.process.stdin.flush()
+        return self.process.stdout.readline()
+        
+    def close(self):
+        self.process.terminate()
+
 class Shell:
     def __init__(self):
         self.processes = {}
         self.aliases = {}
         self.env = os.environ.copy()
-        
+
+    def rt_run(self, cmd, shell=False, env=None, cwd=None):
+        """Запуск команды с выводом в реальном времени"""
+        try:
+            if shell:
+                process = subprocess.Popen(
+                    cmd,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    env=env or self.env,
+                    cwd=cwd
+                )
+            else:
+                args = shlex.split(cmd)
+                process = subprocess.Popen(
+                    args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    env=env or self.env,
+                    cwd=cwd
+                )
+
+            while True:
+                line = process.stdout.readline()
+                if line:
+                    print(line.rstrip(), flush=True)
+                if process.poll() is not None:
+                    break
+            
+            return None
+
+        except Exception as e:
+            error_msg = f"Error: {str(e)}"
+            print(error_msg, flush=True)
+            return error_msg
+
+
     def run(self, cmd, capture=True, shell=False, env=None, cwd=None):
         """Простой запуск команды с возвратом результата"""
         try:
@@ -130,3 +193,7 @@ class Shell:
                 print("\nCtrl+C pressed")
             except EOFError:
                 break
+
+    def create_interactive(self, command):
+        """Создает интерактивную сессию с процессом"""
+        return InteractiveSession(command)

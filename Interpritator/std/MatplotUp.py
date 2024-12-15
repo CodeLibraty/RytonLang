@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import numpy as np
 
 class MatPlotUp:
     def __init__(self, ruvix_instance):

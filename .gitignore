@@ -1,8 +1,21 @@
 # Виртуальное окружение
 Interpritator/ryton_venv/
+ryton_venv/
+cache/*
+venv/
 
 # Скомпилированные файлы и дистрибутивы
 dist/
+*.so
 
 # Zig окружение
-Interpritator/langs/!ZigEnv/
+Interpritator/ZigLang/*
+
+# все файлы сборок
+
+tests/**/dist/
+tests/**/build/
+tests/**/__pycache__/
+tests/**/bundle/
+tests/**/*.pyc
+

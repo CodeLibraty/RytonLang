@@ -34,25 +34,6 @@ from .PackageSystem import PackageSystem
 TRASH_CLEANER_RE  = re.compile(r'trash_cleaner\s*=\s*(true|false)')
 
 
-class UserContext:
-    def __init__(self):
-        self._vars = {}
-        self._funcs = {} 
-    def __getattr__(self, name):
-        if name in self._vars:
-            return self._vars[name]
-        if name in self._funcs:
-            return self._funcs[name]
-        raise AttributeError(f"'{name}' not found")
-    
-    def __setattr__(self, name, value):
-        if name in ('_vars', '_funcs'):
-            super().__setattr__(name, value)
-        elif callable(value):
-            self._funcs[name] = value
-        else:
-            self._vars[name] = value
-
 class SharpyLang:
     __slots__ = (
         'globals', 'effect_registry', 'pragma_handler',
@@ -60,8 +41,7 @@ class SharpyLang:
         'compiled_functions', 'package_system', 'dsls',
         'PACKAGE_IMPORT_RE', 'imported_libs', 'user_vars',
         'transformation_cache', 'IMPORT_RE', 'compiled_cache', 
-        'memory_manager', 'trash_cleaner', 'module_mapping',
-        'user_context'
+        'memory_manager', 'trash_cleaner', 'module_mapping'
     )
 
     def __init__(self):
@@ -85,7 +65,6 @@ class SharpyLang:
         self.pragma_handler   = PragmaHandler()
         self.package_system   = PackageSystem()
         self.memory_manager   = MemoryManager()
-        self.user_context     = UserContext()
         self.module_mapping   = {
             'langs': 'langs',          'langs.Zig': 'langs.Zig',
             'std':   'std',
@@ -282,7 +261,8 @@ def printf(text, end=""):
         code = transform_state_machine(self, code)
         code = transform_intercept(self, code)
 #        code = transform_chain(self, code)
-    
+
+        code = transform_user_self(self, code)
         code = transform_event(self, code)
         code = transform_guard(self, code)
         code = transform_defer(self, code)
@@ -311,7 +291,6 @@ def printf(text, end=""):
 
         replacements2 = {
             'noop':  'pass',
-#            'this.':  'self.',
             'nil':   'None',
             'null':  'None',
             'true':  'True',
@@ -344,7 +323,8 @@ def printf(text, end=""):
         code = transform_debug_blocks(self, code)
         code = transform_block_end(self, code)
         code = process_decorators(self, code)
-        code = transform_clib_import(self, code)
+        code = transform_clib(self, code)
+        code = transform_jvmlib(self, code)
         code = transform_contracts(self, code)
         code = transform_match(self, code)
         code = transform_neural(self, code)
@@ -512,6 +492,10 @@ from functools import *
 from typing import *
 from stdFunction import Parallel, Memory
 
+from jpype import *
+from cffi import FFI
+import ctypes.util
+
 import os as osystem
 import sys as system
 import time as timexc
@@ -519,10 +503,11 @@ import threading
 import asyncio
 
 parallel = Parallel().parallel()
-
             '''
 
-            transformed_code = self.optimize_string_concat(imports, transformed_code)
+            call_main = 'Main()'
+
+            transformed_code = self.optimize_string_concat(imports, transformed_code, call_main)
 
             print(transformed_code)
 
@@ -536,10 +521,7 @@ parallel = Parallel().parallel()
                 'gc': gc,
                 'compile_to_bytecode': self.compile_to_bytecode_decorator,
                 'self': self,
-                'this': self.user_context,
-                'import_package': self.import_package  # Добавляем функцию импорта
             }
-            globals_dict.update(self.globals)
 
             try:
                 exec(self.compiled_cache[code_hash], globals_dict)
@@ -584,8 +566,13 @@ module import {
 
 trash_cleaner = true
 
-print('test')
+jvmlib: java.util as jutil
 
+func main {
+    list = jutil.ArrayList()
+}
+
+main()
     '''
 
     try:

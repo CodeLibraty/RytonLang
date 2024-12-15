@@ -1,19 +1,32 @@
 
 module import {
-	std.lib
+    std.lib
+    std.Files[read_file]
 }
 
 trash_cleaner = true
 
-sus = 'asas'
-pack fuck {
-	func asas {
-		sid = 'asas'
-	}
-	func bitch {
-		sas = 'asas'
-		print(sid)
-	}
+jvmlib: java.io as jio
+jvmlib: java.util as jutil
+pylib: os
+
+func Main() {
+    // Создаем ArrayList
+    list = jutil.ArrayList()
+    list.add("Hello")
+    list.add("from")
+    list.add("Ryton!")
+    
+    // Записываем в файл
+    writer = jio.FileWriter("test.txt")
+    for item in list {
+        writer.write(item + " ")
+    }
+    writer.close()
+    
+    print("File written successfully!")
+
+    // Читаем из файла
+    print(f'File read:$N{read_file("test.txt")}')
 }
 
-fuck.bitch()
