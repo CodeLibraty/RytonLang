@@ -1,32 +1,39 @@
 
 module import {
-    std.lib
-    std.Files[read_file]
+    ZigLang.Bridge[ZigBridge]
+    std.RunTimer.timeit
 }
 
 trash_cleaner = true
 
-jvmlib: java.io as jio
-jvmlib: java.util as jutil
-pylib: os
+<timeit>
+func RyMath {
+    one = 279410 * 367429
+    two = 312493 * 376150975409857
+    result = one * two * 81654975048510 / 358413075
 
-func Main() {
-    // Создаем ArrayList
-    list = jutil.ArrayList()
-    list.add("Hello")
-    list.add("from")
-    list.add("Ryton!")
-    
-    // Записываем в файл
-    writer = jio.FileWriter("test.txt")
-    for item in list {
-        writer.write(item + " ")
-    }
-    writer.close()
-    
-    print("File written successfully!")
-
-    // Читаем из файла
-    print(f'File read:$N{read_file("test.txt")}')
+    return result
 }
 
+<timeit>
+func ZigMath {
+    #Zig(start)
+    const std = @import("std");
+
+    pub fn main() !void {
+        const one = 279410 * 367429;
+        const two = 312493 * 376150975409857;
+        const result = one * two * 81654975048510 / 358413075;
+        std.debug.print("Result: {d}\\n", .{result});
+    }
+    #Zig(end: var)
+    return 'end'
+}
+
+func Main {
+    print("Ryton Interpritator")
+    print(f'Result {RyMath()}')
+
+    print('Zig Compilator')
+    print(f'{ZigMath()}')
+}

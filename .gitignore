@@ -9,13 +9,24 @@ dist/
 *.so
 
 # Zig окружение
-Interpritator/ZigLang/*
+Interpritator/ZigLang/lib/*
 
 # все файлы сборок
-
 tests/**/dist/
 tests/**/build/
 tests/**/__pycache__/
 tests/**/bundle/
 tests/**/*.pyc
+
+# прочее
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.kivy
+.venv
+.vscode
+cache
 

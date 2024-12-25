@@ -783,21 +783,26 @@ def transform_macro(self, code):
         
     return code
 
-def transform_language_tags(self, code):
-    def replace_zig_block(match):
-        indent = match.group(1)
-        zig_code = match.group(2)
-        return_expr = match.group(3)
+def transform_zig_tags(self, code):
+    pattern = r'#Zig\(start\)([\s\S]*?)#Zig\(end:\s*([^)]*)\)'
+    
+    def replace(match):
+        base_indent = "    "  # Base indentation level
+        zig_code = match.group(1).strip()
+        return_var = match.group(2).strip()
         
-        result = f"{indent}_zig = ZigRun()\n{indent}_result = _zig.run_code('''{zig_code}''')\n{indent}{return_expr}"
-        return result
+        result = [
+            f"#raw(start)",
+            f"{base_indent}zig_bridge = ZigBridge()",
+            f"{base_indent}{return_var} = zig_bridge.compile_and_run(",
+            f"{base_indent}    zig_code='''{zig_code}''',mode='run',cache=True",
+            f"{base_indent})\n"
+            f"{base_indent}#raw(end)",
+        ]
+        
+        return '\n'.join(result)
 
-    return re.sub(
-        r'^([ \t]*?)#Zig\(start\)([\s\S]*?)#Zig\(end:\s*(.*?)\)', 
-        replace_zig_block, 
-        code,
-        flags=re.MULTILINE
-    )
+    return re.sub(pattern, replace, code)
 
 def transform_doc_comments(self, code):
     def replace_doc(match):

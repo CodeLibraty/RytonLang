@@ -66,7 +66,7 @@ class SharpyLang:
         self.package_system   = PackageSystem()
         self.memory_manager   = MemoryManager()
         self.module_mapping   = {
-            'langs': 'langs',          'langs.Zig': 'langs.Zig',
+            'ZigLang': 'ZigLang',       'ZigLang.Bridge': 'ZigLang.Bridge',
             'std':   'std',
 
             'std.HyperConfigFormat':   'std.HyperConfigFormat',
@@ -186,21 +186,19 @@ def printf(text, end=""):
         preserved_blocks = {}
         counter = 0
         
-        # Ищем блоки #raw
-        raw_pattern = r'#raw\(start\)([\s\S]*?)#raw\(end\)'
+        raw_pattern = r'#raw\(start\)(.*?)#raw\(end\)'
         
-        matches = list(re.finditer(raw_pattern, code))
+        matches = list(re.finditer(raw_pattern, code, re.DOTALL))
         for match in matches:
-            key = f'__RAW_{counter}__'
+            key = f'RAWBLOCK_{counter}_ENDRAW'
             content = match.group(1)
             preserved_blocks[key] = content
-            start = int(match.start())
-            end = int(match.end())
+            start = match.start()
+            end = match.end()
             code = code[:start] + key + code[end:]
             counter += 1
-        print(preserved_blocks)
+            
         return code, preserved_blocks
-
 
     def restore_language_blocks(self, code, preserved_blocks):
         # Восстанавливаем сохраненные блоки
@@ -210,14 +208,16 @@ def printf(text, end=""):
 
     @lru_cache(maxsize=128)
     def transform_syntax(self, code):
-
+        # Следом Обработка меж-языковых тегов и импортов
+        code = transform_zig_tags(self, code)
         # Сохраняем блоки кода других языков
         protected_code, raw_blocks = self.protect_raw_blocks(code)
 
         # Потом Уже проверяем синтаксис
         self.syntax_analyzer.analyze(code)
-
+    
         # Обработка импортов библиотек
+        code = protected_code
         code = self.IMPORT_RE.sub(self.process_imports, code)
         code = self.PACKAGE_IMPORT_RE.sub(self.process_package_imports, code)
 
@@ -363,13 +363,9 @@ def printf(text, end=""):
         code = transform_unpacking(self, code)
         code = transform_elif(self, code)
 
-#        code = self.restore_language_blocks(protected_code, preserved_blocks)
-        for key, block in raw_blocks.items():
-            code = code.replace(key, block)
-        
-
-        # Следом Обработка меж-языковых тегов и импортов
-        code = transform_language_tags(self, code)
+        # Теперь восстанавливаем raw блоки        
+        for key, content in raw_blocks.items():
+            code = code.replace(key, content)
 
         self.transformation_cache[code_hash] = code
 
@@ -486,7 +482,7 @@ def printf(text, end=""):
         try:
             # Трансформируем синтаксис перед парсингом
             transformed_code = self.transform_syntax(code)
-
+                
             imports = '''
 from functools import *
 from typing import *
@@ -500,16 +496,19 @@ import os as osystem
 import sys as system
 import time as timexc
 import threading
-import asyncio
+from asyncio import *
 
 parallel = Parallel().parallel()
             '''
 
-            call_main = 'Main()'
+            call_main = '\nMain()'
 
             transformed_code = self.optimize_string_concat(imports, transformed_code, call_main)
 
-            print(transformed_code)
+            # Добавляем вывод кода с номерами строк
+            lines = transformed_code.split('\n')
+            for i, line in enumerate(lines, 1):
+                print(f"{i:3d} | {line}")
 
             # Кэширование скомпилированного кода
             code_hash = hash(transformed_code)
