@@ -15,7 +15,7 @@ from kivymd.uix.slider import MDSlider
 from kivymd.uix.selectioncontrol import MDSwitch, MDCheckbox
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.spinner import MDSpinner
-from kivymd.uix.tab import MDTabs, MDTabsBase
+from kivymd.uix.tab import MDTabs, MDTabsBase, MDTabsLabel
 from kivymd.uix.card import MDCard
 from kivymd.uix.list import MDList, OneLineListItem, TwoLineListItem, ThreeLineListItem
 from kivymd.uix.dialog import MDDialog
@@ -35,6 +35,59 @@ from kivymd.uix.datatables import MDDataTable
 from kivy import core
 import importlib
 from functools import lru_cache
+from kivy.uix.widget import Widget
+import pygame
+from kivy.graphics.texture import Texture
+from kivy.clock import Clock
+from kivy.graphics import Rectangle
+from kivy.graphics import Color, Rectangle, Canvas, Mesh
+from kivy.core.window import Window
+import random
+
+class RytonGameWidget(Widget):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.canvas = Canvas()
+        self.pygame_surface = None
+        self.texture = None
+        self.physics_enabled = False
+        self.effects = []
+        Clock.schedule_interval(self.update, 1.0/60.0)
+
+    def _update_physics(self, dt):
+        if self.physics_enabled:
+            # Update velocity with gravity
+            self.velocity[1] -= self.gravity * dt
+            
+            # Update position
+            self.pos[0] += self.velocity[0] * dt
+            self.pos[1] += self.velocity[1] * dt
+            
+            # Ground collision
+            if self.pos[1] < 0:
+                self.pos[1] = 0
+                self.velocity[1] = -self.velocity[1] * 0.8  # Bounce with damping
+
+    def setup_pygame(self, size=(800, 600)):
+        pygame.init()
+        self.size = size
+        self.pygame_surface = pygame.Surface(size)
+        self.texture = Texture.create(size=size)
+        self.texture.flip_vertical()
+        
+        with self.canvas:
+            Color(1, 1, 1, 1)
+            self.rect = Rectangle(size=size, texture=self.texture)
+        
+        # Schedule regular updates    
+        Clock.schedule_interval(self.update, 1.0/60.0)
+            
+    def update(self, dt):
+        if hasattr(self, 'draw_callback'):
+            self.draw_callback(self.pygame_surface)
+            data = pygame.image.tostring(self.pygame_surface, 'RGB')
+            self.texture.blit_buffer(data, colorfmt='rgb', bufferfmt='ubyte')
+            self.canvas.ask_update()
 
 class RytonMDApp(MDApp):
     def __init__(self, ryton_instance, **kwargs):
@@ -50,6 +103,97 @@ class RuVix:
         self.ryton = ryton_instance
         self.app = None
         self.custom_widgets = {}
+
+    def _create_particle_effect(self, count=100):
+        class ParticleEffect:
+            def __init__(self):
+                self.particles = [(random.randint(0,800), random.randint(0,600), 
+                                 random.randint(0,255), random.randint(0,255), random.randint(0,255),
+                                 random.uniform(-1,1), random.uniform(-1,1)) # x,y,r,g,b,dx,dy
+                                for _ in range(count)]
+                
+            def draw(self, surface):
+                surface.fill((0,0,0,0)) # Очищаем поверхность эффектов
+                for i, (x,y,r,g,b,dx,dy) in enumerate(self.particles):
+                    pygame.draw.circle(surface, (r,g,b,128), (int(x),int(y)), 2)
+                    # Обновляем позицию
+                    new_x = x + dx
+                    new_y = y + dy
+                    # Проверяем границы
+                    if not (0 <= new_x <= 800 and 0 <= new_y <= 600):
+                        dx = -dx
+                        dy = -dy
+                    self.particles[i] = (new_x, new_y, r,g,b, dx,dy)
+        return ParticleEffect()
+
+    def _create_effect(self, effect_type, **params):
+        effects = {
+            'particles': self._create_particle_effect,
+            'glow': self._create_glow_effect,
+            'blur': self._create_blur_effect,
+            'wave': self._create_wave_effect
+        }
+        return effects[effect_type](**params)
+
+    def _create_blur_effect(self, radius=5):
+        class BlurEffect:
+            def update(self, dt):
+                pass # Blur implementation will be added here
+        return BlurEffect()
+        
+    def _create_wave_effect(self, amplitude=100, frequency=10):
+        class WaveEffect:
+            def update(self, dt):
+                pass # Wave implementation will be added here
+        return WaveEffect()
+
+    def _create_particle_effect(self, count=100):
+        class ParticleEffect:
+            def __init__(self):
+                self.particles = [(random.random()*800, random.random()*600) 
+                                for _ in range(count)]
+            def update(self, dt):
+                for i, p in enumerate(self.particles):
+                    self.particles[i] = (p[0] + random.random()*2-1,
+                                       p[1] + random.random()*2-1)
+        return ParticleEffect()
+        
+    def _create_glow_effect(self, radius=10):
+        class GlowEffect:
+            def update(self, dt):
+                pass # Add glow implementation
+        return GlowEffect()
+
+    def draw_on_pygame(self, widget, draw_func):
+        widget.draw_callback = draw_func
+    
+    def enable_physics(self, widget, mass=1.0, gravity=9.8):
+        widget.physics_enabled = True
+        widget.mass = mass
+        widget.velocity = [0, 0]
+        widget.gravity = gravity
+    
+    def add_effect(self, widget, effect_type, **params):
+        effect = self._create_effect(effect_type, **params)
+        widget.effects.append(effect)
+
+    def create_color(self, r, g, b, a=1):
+        return Color(r, g, b, a)
+
+    def create_mesh(self, vertices, indices, mode='triangles'):
+        return Mesh(
+            vertices=vertices,
+            indices=indices,
+            mode=mode
+        )
+
+    def create_canvas_context(self, widget):
+        return widget.canvas
+
+    def create_game_widget(self, size=(800, 600)):
+        widget = RytonGameWidget()
+        widget.setup_pygame(size)
+        return widget
 
     def register_custom_widget(self, widget_name, widget_class):
         self.custom_widgets[widget_name] = widget_class
@@ -77,9 +221,9 @@ class RuVix:
         if self.app:
             self.app.root = widget
 
-    @lru_cache(maxsize=128)
     def create_widget(self, widget_type, **kwargs):
         widget_classes = {
+            'Dialog': MDDialog,
             'Widget': Widget,
             'RaisedButton': MDRaisedButton,
             'Button': Button,
@@ -139,24 +283,31 @@ class RuVix:
         
         return CustomWidget(**kwargs)
 
-    @lru_cache(maxsize=128)
     def add_widget(self, parent, child):
         parent.add_widget(child)
 
-    @lru_cache(maxsize=128)
     def bind_event(self, widget, event_name, callback):
         widget.bind(**{event_name: callback})
 
-    @lru_cache(maxsize=128)
     def run_app(self):
         if self.app:
             self.app.run()
 
-    @lru_cache(maxsize=128)
     def create_dialog(self, **kwargs):
         return MDDialog(**kwargs)
 
-    @lru_cache(maxsize=128)
+    def create_tab_group(self, **kwargs):
+        tabs = self.create_widget('Tabs', **kwargs)
+        return tabs
+        
+    def create_tab(self, title, **kwargs):
+        content = self.create_widget('BoxLayout', 
+            orientation='vertical',
+            **kwargs
+        )
+        content.tab_label_text = title
+        return content
+
     def create_dropdown_menu(self, **kwargs):
         return MDDropdownMenu(**kwargs)
 

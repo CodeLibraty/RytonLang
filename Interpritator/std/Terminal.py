@@ -13,6 +13,7 @@ from typing import Tuple, Optional
 
 import subprocess
 import platform
+import pyfiglet
 import shutil
 import sys
 import os
@@ -377,7 +378,11 @@ class Terminal:
     def input(self, prompt, password=False):
         """Улучшенный ввод с подсказкой"""
         return Prompt.ask(prompt, password=password)
-    
+
+    def print_ascii(self, text='text', font='standard', width=80):
+        fig = pyfiglet.Figlet(font=font, width=width)
+        return fig.renderText(text)
+
     def confirm(self, question):
         """Запрос подтверждения действия"""
         return Confirm.ask(question)

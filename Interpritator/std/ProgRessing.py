@@ -132,7 +132,7 @@ class Spinner:
         sys.stdout.flush()
 
 
-class SpinnerV2:
+class Spinner2:
     def __init__(self, message="Loading...", delay=0.1):
         self.message = message
         self.delay = delay

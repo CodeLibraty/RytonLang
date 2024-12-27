@@ -3,18 +3,31 @@ import datetime
 
 def time(type='std'):
     if type == 'std':
-        return timex.localtime()
+        return str(timex.localtime())
     elif type == 'asc':
         return timex.asctime()
     elif type == 'unix':
         return timex.time()
     elif type == 'utc':
-        return timex.gmtime()
+        return str(timex.gmtime())
     else:
-        print(f'type time {type} not found')
+        return f'type time {type} not found'
+
+def hours():
+    return timex.localtime().tm_hour
+
+def minutes():
+    return timex.localtime().tm_min
+    
+def seconds():
+    return timex.localtime().tm_sec
+
+def time_short():
+    t = timex.localtime()
+    return f"{t.tm_hour}:{t.tm_min}:{t.tm_sec}"
 
 def cal():
-    pass
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def sleep(time=0):
     timex.sleep(time)
@@ -22,7 +35,7 @@ def sleep(time=0):
 def today():
     return datetime.date.today()
 
-def time_stump(time_stump):
+def time_stamp(timestamp):
     return datetime.date.fromtimestamp(timestamp)
 
 def iso_cal():
@@ -38,8 +51,8 @@ def glob_time(hour=0, minute=0, second=0, microsecond=0, tzinfo=None):
 
 def now(tz=None, type='std'):
     if type == 'std':
-        return datetime.datetime.now(tz=None)
+        return datetime.datetime.now(tz)
     elif type == 'utc':
         return datetime.datetime.utcnow()
     else:
-        print(f'type time {type} not found')
+        return f'type time {type} not found'

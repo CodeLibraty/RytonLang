@@ -51,7 +51,9 @@ class ZigBridge:
         temp_file.write_text(code)
         
         if mode == "run":
-            result = subprocess.run(["./Interpritator/ZigLang/zig", "run", "zig/src/temp.zig"]) 
+            result = subprocess.run(["./Interpritator/ZigLang/zig",
+                                     "run",
+                                     "zig/src/temp.zig"]) 
         elif mode == "obj":
             subprocess.run(["./Interpritator/ZigLang/zig", "build-obj", "temp.zig"])
             result = Path("temp.o")

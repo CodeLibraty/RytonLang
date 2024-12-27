@@ -5,7 +5,7 @@ import sys
 
 
 @staticmethod
-def echo(*values: Any, sep: str = " → ", end: str = "\n") -> None:
+def sep(*values: Any, sep: str = " → ", end: str = "\n") -> None:
     """Расширенный вывод с кастомным разделителем"""
     builtins.print(*values, sep=sep, end=end)
     
@@ -68,7 +68,7 @@ def read_until(terminator: str = "", stream: str = "stdin") -> str:
     return ''.join(result)
     
 @staticmethod
-def echo_repeat(value: Any, count: int = 1, sep: str = "") -> None:
+def echo(value: Any, count: int = 1, sep: str = "") -> None:
     """Повторяющийся вывод"""
     builtins.print(*([value] * count), sep=sep)
 

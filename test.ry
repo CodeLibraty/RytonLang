@@ -1,39 +1,18 @@
 
 module import {
     ZigLang.Bridge[ZigBridge]
-    std.RunTimer.timeit
 }
 
 trash_cleaner = true
 
-<timeit>
-func RyMath {
-    one = 279410 * 367429
-    two = 312493 * 376150975409857
-    result = one * two * 81654975048510 / 358413075
-
-    return result
-}
-
-<timeit>
-func ZigMath {
+func Main {
+    print("Hello From Ryton")
     #Zig(start)
     const std = @import("std");
+    const print = std.debug.print;
 
-    pub fn main() !void {
-        const one = 279410 * 367429;
-        const two = 312493 * 376150975409857;
-        const result = one * two * 81654975048510 / 358413075;
-        std.debug.print("Result: {d}\\n", .{result});
+    pub fn main() void {
+        print("Hello From Zig\\n", .{});
     }
     #Zig(end: var)
-    return 'end'
-}
-
-func Main {
-    print("Ryton Interpritator")
-    print(f'Result {RyMath()}')
-
-    print('Zig Compilator')
-    print(f'{ZigMath()}')
 }

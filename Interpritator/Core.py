@@ -71,9 +71,11 @@ class SharpyLang:
 
             'std.HyperConfigFormat':   'std.HyperConfigFormat',
             'std.RuVix.Effects':       'std.RuVix.Effects',
+            'std.RuVix.App':           'std.RuVix.App,pygame',
 
             'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
             'std.UpIO':        'std.UpIO',         'std.Rask':        'std.Rask',
+            'std.Math':        'std.Math',         'std.RandoMizer':  'std.RandoMizer',
             'std.RytonDB':     'std.RytonDB',      'std.Terminal':    'std.Terminal',
             'std.JITCompiler': 'std.JITCompiler',  'std.RuVix':       'std.RuVix',
             'std.Path':        'std.Path',         'std.Files':       'std.Files',
@@ -288,6 +290,7 @@ def printf(text, end=""):
                 transformed_lines.append('    ' * indent_level + stripped)
 
         code = '\n'.join(transformed_lines)
+        print(code)
 
         replacements2 = {
             'noop':  'pass',
