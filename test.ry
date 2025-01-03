@@ -1,18 +1,12 @@
 
 module import {
-    ZigLang.Bridge[ZigBridge]
+    std.RunTimer[timeit]
 }
 
 trash_cleaner = true
 
+<timeit>
 func Main {
-    print("Hello From Ryton")
-    #Zig(start)
-    const std = @import("std");
-    const print = std.debug.print;
-
-    pub fn main() void {
-        print("Hello From Zig\\n", .{});
-    }
-    #Zig(end: var)
+    result = 999 ** 999
+    print(result)
 }

@@ -5,6 +5,95 @@ from rich.console import Console
 from typing import List, Dict, Any, Callable
 from PackageSystem import PackageSystem
 
+class Contract:
+    def __init__(self):
+        self.pre_conditions = []
+        self.post_conditions = []
+        self.invariants = []
+
+    @staticmethod
+    def pre_condition(condition):
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                if not condition(*args, **kwargs):
+                    raise ContractError("Pre-condition failed")
+                return func(*args, **kwargs)
+            return wrapper
+        return decorator
+
+    @staticmethod
+    def post_condition(condition):
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                result = func(*args, **kwargs)
+                if not condition(result):
+                    raise ContractError("Post-condition failed")
+                return result
+            return wrapper
+        return decorator
+
+    @staticmethod
+    def invariant(condition):
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                if not condition():
+                    raise ContractError("Invariant failed")
+                result = func(*args, **kwargs)
+                if not condition():
+                    raise ContractError("Invariant failed after execution")
+                return result
+            return wrapper
+        return decorator
+
+class Reactive:
+    def __init__(self):
+        self.subscribers = {}
+        self.state = {}
+        
+    def observe(self, key):
+        def decorator(func):
+            if key not in self.subscribers:
+                self.subscribers[key] = []
+            self.subscribers[key].append(func)
+            return func
+        return decorator
+        
+    def set_state(self, key, value):
+        self.state[key] = value
+        if key in self.subscribers:
+            for subscriber in self.subscribers[key]:
+                subscriber(value)
+                
+    def get_state(self, key):
+        return self.state.get(key)
+
+    def stream(self):
+        return ReactiveStream(self)
+
+class ReactiveStream:
+    def __init__(self, reactive):
+        self.reactive = reactive
+        self.operations = []
+        
+    def filter(self, condition):
+        self.operations.append(('filter', condition))
+        return self
+        
+    def map(self, transform):
+        self.operations.append(('map', transform))
+        return self
+        
+    def subscribe(self, callback):
+        def process_value(value):
+            for op_type, op in self.operations:
+                if op_type == 'filter':
+                    if not op(value):
+                        return
+                elif op_type == 'map':
+                    value = op(value)
+            callback(value)
+        return process_value
+
 class Table:
     def __init__(self):
         self.rows = []

@@ -73,6 +73,7 @@ class SharpyLang:
             'std.RuVix.Effects':       'std.RuVix.Effects',
             'std.RuVix.App':           'std.RuVix.App,pygame',
 
+            'TrixD':           'TrixD',
             'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
             'std.UpIO':        'std.UpIO',         'std.Rask':        'std.Rask',
             'std.Math':        'std.Math',         'std.RandoMizer':  'std.RandoMizer',
@@ -264,6 +265,8 @@ def printf(text, end=""):
         code = transform_intercept(self, code)
 #        code = transform_chain(self, code)
 
+        code = transform_reactive(self, code)
+        code = transform_special_operators(self, code)
         code = transform_user_self(self, code)
         code = transform_event(self, code)
         code = transform_guard(self, code)
@@ -290,7 +293,6 @@ def printf(text, end=""):
                 transformed_lines.append('    ' * indent_level + stripped)
 
         code = '\n'.join(transformed_lines)
-        print(code)
 
         replacements2 = {
             'noop':  'pass',
@@ -322,7 +324,7 @@ def printf(text, end=""):
         code = transform_import_modules(self, code)
         code = transform_grouped_args(self, code)
         code = transform_doc_comments(self, code)
-        code = transform_special_operators(self, code)
+        code = transform_contracts(self, code)
         code = transform_debug_blocks(self, code)
         code = transform_block_end(self, code)
         code = process_decorators(self, code)
@@ -480,8 +482,58 @@ def printf(text, end=""):
 
         return ''.join(python_imports)
 
+    def compile(self, code, output_file):
+        # Трансформируем синтаксис
+        transformed_code = self.transform_syntax(code)
+        
+        # Добавляем необходимые импорты
+        imports = '''
+from functools import *
+from typing import *
+from stdFunction import *
 
-    def execute(self, code):
+from jpype import *
+from cffi import FFI
+import ctypes.util
+
+import os as osystem
+import sys as system
+import time as timexc
+import threading
+from asyncio import *
+
+parallel = Parallel().parallel()
+        '''
+        
+        final_code = imports + transformed_code + '\nMain()'
+        
+        # Компилируем в байткод
+        bytecode = compile(final_code, output_file, 'exec')
+        
+        # Сохраняем байткод в файл
+        import marshal
+        with open(output_file + '.ryc', 'wb') as f:
+            marshal.dump(bytecode, f)
+
+    def exec(self, bytecode_file):
+        import marshal
+        
+        # Загружаем байткод
+        with open(bytecode_file, 'rb') as f:
+            bytecode = marshal.load(f)
+        
+        # Создаем глобальное окружение
+        globals_dict = {
+            'gc': gc,
+            'compile_to_bytecode': self.compile_to_bytecode_decorator,
+            'self': self,
+        }
+        
+        # Выполняем байткод
+        exec(bytecode, globals_dict)
+        self.globals.update(globals_dict)
+
+    def run(self, code):
         try:
             # Трансформируем синтаксис перед парсингом
             transformed_code = self.transform_syntax(code)
@@ -489,7 +541,7 @@ def printf(text, end=""):
             imports = '''
 from functools import *
 from typing import *
-from stdFunction import Parallel, Memory
+from stdFunction import *
 
 from jpype import *
 from cffi import FFI
@@ -509,9 +561,9 @@ parallel = Parallel().parallel()
             transformed_code = self.optimize_string_concat(imports, transformed_code, call_main)
 
             # Добавляем вывод кода с номерами строк
-            lines = transformed_code.split('\n')
-            for i, line in enumerate(lines, 1):
-                print(f"{i:3d} | {line}")
+#            lines = transformed_code.split('\n')
+#            for i, line in enumerate(lines, 1):
+#                print(f"{i:3d} | {line}")
 
             # Кэширование скомпилированного кода
             code_hash = hash(transformed_code)

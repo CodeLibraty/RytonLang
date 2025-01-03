@@ -783,6 +783,56 @@ def transform_macro(self, code):
         
     return code
 
+def transform_contracts(self, code):
+    def replace_contract(match):
+        contract_name = match.group(1)
+        body = match.group(2)
+        
+        result = [f"class {contract_name}(Contract):"]
+        
+        for line in body.split('\n'):
+            line = line.strip()
+            if line.startswith('pre:'):
+                condition = line[4:].strip()
+                result.append(f"    @Contract.pre_condition(lambda *args: {condition})")
+            elif line.startswith('post:'):
+                condition = line[5:].strip()
+                result.append(f"    @Contract.post_condition(lambda result: {condition})")
+            elif line.startswith('invariant:'):
+                condition = line[10:].strip()
+                result.append(f"    @Contract.invariant(lambda: {condition})")
+
+        # Добавляем метод validate, который будет декорирован условиями
+        result.append("    def validate(self):")
+        result.append("        return True")
+
+        return '\n'.join(result)
+
+    return re.sub(r'contract\s+(\w+)\s*:\s*([\s\S]*?)(?=\n\S|$)', replace_contract, code)
+
+def transform_reactive(self, code):
+    def replace_stream(match):
+        indent = match.group(1)
+        stream_var = match.group(2)
+        operations = match.group(3)
+        target = match.group(4)
+        
+        stream_code = f"{indent}{stream_var}.stream()"
+        
+        for line in operations.split('\n'):
+            line = line.strip()
+            if line.startswith('filter'):
+                cond = line[7:-1]  # Убираем filter()
+                stream_code += f".filter(lambda e: {cond})"
+            elif line.startswith('transform'):
+                trans = line[10:-1]  # Убираем transform()
+                stream_code += f".map(lambda e: {trans})"
+        
+        stream_code += f".subscribe({target})"
+        return stream_code
+
+    return re.sub(r'([ \t]*)(\w+)\.stream\s*\{([\s\S]*?)\}\s*->\s*(\w+)', replace_stream, code)
+
 def transform_zig_tags(self, code):
     pattern = r'#Zig\(start\)([\s\S]*?)#Zig\(end:\s*([^)]*)\)'
     
