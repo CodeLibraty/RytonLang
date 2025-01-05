@@ -1,10 +1,39 @@
+import time
 import csv
 import rich
+import threading
 from rich.table import Table as RichTable
 from rich.console import Console
 from typing import List, Dict, Any, Callable
 from PackageSystem import PackageSystem
+from ErrorHandler import RytonError
 
+# MODIFICATORS
+def readonly(cls):
+    original_setattr = cls.__setattr__
+    
+    def __setattr__(self, name, value):
+        if hasattr(self, name):
+            raise RytonError(f"attribute readonly: {name}")
+        original_setattr(self, name, value)
+        
+    cls.__setattr__ = __setattr__
+    return cls
+
+# FUCTIONS
+def event(item1, item2, code):
+    while True:
+        if item1 == item2:
+            exec(code)
+            break
+        else:
+            time.sleep(0.05)
+
+def start_event(item1, item2, code):
+    thread = threading.Thread(target=event(item1, item2, code))
+    thread.start()
+
+# ClASSES
 class Contract:
     def __init__(self):
         self.pre_conditions = []

@@ -1,12 +1,22 @@
 
 module import {
+    std.lib
     std.RunTimer[timeit]
 }
 
 trash_cleaner = true
 
-<timeit>
-func Main {
-    result = 999 ** 999
-    print(result)
+void func Main {}
+
+pack Test {
+    slots {'test_var', 'test_var2'}
+    init {
+        this.test_var = '99'
+        this.test_var2 = 2
+    }
+    <timeit>
+    func test_func(this) => return this.test_var + this.test_var2
 }
+
+Test = Test()
+print(Test.test_func())

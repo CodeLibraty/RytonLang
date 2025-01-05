@@ -1,52 +1,52 @@
 Ryton Open Source License (ROSL) v1.0
 
-Copyright (c) 2024 DichRumpany team
+Copyright (c) 2025 CodeLibraty team
 Lead Developer: RejziDich
-Team Members: DichRumpany team
+Team Members: CodeLibraty team
 
-1. Разрешения
-- Коммерческое и некоммерческое использование
-- Модификация и распространение кода
-- Создание производных работ
-- Интеграция с другими проектами
-- Совмещение с другими лицензиями
+1. Permissions
+- Commercial and non-commercial use
+- Modification and distribution of code
+- Creation of derivative works
+- Integration with other projects
+- Combination with other licenses
 
-2. Обязательные условия
-2.1 Указание авторства:
-- Оригинальный автор: RejziDich
-- Команда разработков: DichRumpany team
-- Ссылка на официальный репозиторий: https://github.com/Rejzi-dich/RytonLang
+2. Mandatory conditions
+2.1 Attribution:
+- Original author: RejziDich
+- Development team: CodeLibraty team
+- Link to the official repository: https://github.com/CodeLibraty/RytonLang
 
-2.2 Открытый код:
-- Публикация полного исходного кода производных работ
-- Документирование всех внесённых изменений
-- Сохранение истории изменений
+2.2 Open source:
+- Publishing the full source code of derivative works
+- Documenting all changes made
+- Preserving the history of changes
 
-2.3 Распространение:
-- Сохранение текста данной лицензии
-- Указание факта использования Ryton
-- Сохранение всех уведомлений об авторских правах
+2.3 Distribution:
+- Preserving the text of this license
+- Indication of the fact of using Ryton
+- Preserving all notices about copyright
 
-3. Совместимость лицензий
-- Разрешено совмещение с MIT, Apache 2.0, GPL, BSD
-- При совмещении должны соблюдаться условия всех лицензий
-- Приоритет условий ROSL при конфликтах
+3. License Compatibility
+- Allows combination with MIT, Apache 2.0, GPL, BSD
+- When combining, the terms of all licenses must be followed
+- ROSL terms take precedence in case of conflicts
 
-4. Товарные знаки
-- Название "Ryton" и логотип являются товарными знаками DichRumpany team
-- Комерческое Использование требует явного разрешения
+4. Trademarks
+- The name "Ryton" and the logo are trademarks of the CodeLibraty team
+- Commercial Use requires explicit permission from the main developer - RejziDich (https://github.com/Rejzi-dich)
 
-5. Ограничение ответственности
-Программное обеспечение поставляется "как есть", без каких-либо гарантий. Ни при каких обстоятельствах авторы не несут ответственности за любые претензии или убытки.
+5. Limitation of Liability
+The software is provided "as is", without any warranties. Under no circumstances will the authors be liable for any claims or damages.
 
-6. Прекращение действия
-- Автоматическое прекращение при нарушении условий
-- Обязательное удаление всех копий при прекращении
-- Возможность восстановления при устранении нарушений
+6. Termination
+- Automatic termination upon violation of terms
+- Mandatory deletion of all copies upon termination
+- Possibility of restoration if violations are corrected
 
-7. Вклад в проект
-- Все вклады в проект подпадают под действие данной лицензии
-- Участники сохраняют авторские права на свой код
-- DichRumpany team оставляет право изменять условия лицензии
+7. Contribution to the project
+- All contributions to the project are subject to this license
+- Contributors retain copyright to their code
+- CodeLibraty team reserves the right to change the license terms
 
-По всем вопросам: https://github.com/RejziDich/RytonLang
+For all questions: https://github.com/CodeLibraty/RytonLang

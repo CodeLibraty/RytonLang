@@ -178,13 +178,6 @@ class SharpyLang:
             return compiled_func
         return decorator
 
-    def add_standart_functions(self, code):
-        code += '''
-def printf(text, end=""):
-    print(text, end=end)
-        '''
-        return code
-
     def protect_raw_blocks(self, code):
         preserved_blocks = {}
         counter = 0
@@ -258,14 +251,13 @@ def printf(text, end=""):
 
         code = re.sub(r'\n\}\)', r'\}\)', code)
 
-        code = transform_pack_slots(self, code)
-
         code = transform_macro(self, code)
         code = transform_state_machine(self, code)
         code = transform_intercept(self, code)
 #        code = transform_chain(self, code)
 
         code = transform_reactive(self, code)
+        code = transform_lambda(self, code)
         code = transform_special_operators(self, code)
         code = transform_user_self(self, code)
         code = transform_event(self, code)
@@ -295,21 +287,14 @@ def printf(text, end=""):
         code = '\n'.join(transformed_lines)
 
         replacements2 = {
-            'noop':  'pass',
-            'nil':   'None',
-            'null':  'None',
-            'true':  'True',
-            'false': 'False',
-            'none':  'None',
-            '&':  'and',
-            '//': '#',
+            'noop': 'pass',
+            '&':    'and',
+            '//':   '#',
         }
 
         for old, new in replacements2.items():
             code = code.replace(old, new)
 
-        # Обработка декораторов
-        code = re.sub(r'<compile_to_bytecode>\s*\n\s*func\s+(\w+)', r'@sharpy.compile_to_bytecode_decorator("\1")\nfunc \1', code)
         code = transform_decorators(self, code)
 
         # Быстрая трансформация
@@ -334,7 +319,9 @@ def printf(text, end=""):
         code = transform_match(self, code)
         code = transform_neural(self, code)
         code = transform_with(self, code)
+        code = transform_data(self, code)
         code = transform_prop(self, code)
+        code = transform_private(self, code)
         code = transform_void(self, code)
         code = transform_func_massive(self, code)
         code = transform_lazy(self, code)
@@ -346,13 +333,16 @@ def printf(text, end=""):
         code = transform_elerr3(self, code)
         code = transform_elerr4(self, code)
         code = transform_pylib(self, code)
-        code = transform_private(self, code)
         code = transform_protect(self, code)
+        code = transform_read(self, code)
+        code = transform_func_oneline(self, code)
         code = transform_func3(self, code)
         code = transform_func2(self, code)
         code = transform_pack2(self, code)
         code = transform_func(self, code)
         code = transform_pack(self, code)
+        code = transform_slots(self, code)
+        code = transform_meta_modifiers(self, code)
         code = transform_info_programm(self, code)
         code = transform_start_programm(self, code)
         code = transform_init(self, code)
@@ -561,9 +551,9 @@ parallel = Parallel().parallel()
             transformed_code = self.optimize_string_concat(imports, transformed_code, call_main)
 
             # Добавляем вывод кода с номерами строк
-#            lines = transformed_code.split('\n')
-#            for i, line in enumerate(lines, 1):
-#                print(f"{i:3d} | {line}")
+            lines = transformed_code.split('\n')
+            for i, line in enumerate(lines, 1):
+                print(f"{i:3d} | {line}")
 
             # Кэширование скомпилированного кода
             code_hash = hash(transformed_code)
@@ -582,14 +572,14 @@ parallel = Parallel().parallel()
             except SyntaxError as e:
                 # Обрабатываем ошибки синтаксиса отдельно
                 error = RytonSyntaxError(str(e), e.lineno, e.offset, code)
-                self.error_handler.handle_error(error, code)
+                self.error_handler.handle_error(error, code, transformed_code)
             except Exception as e:
                 # Обрабатываем все остальные ошибки
                 if hasattr(e, 'lineno'):
                     error = RytonError(str(e), e.lineno, getattr(e, 'offset', None), code)
                 else:
                     error = RytonError(str(e), None, None, code)
-                self.error_handler.handle_error(error, code)
+                self.error_handler.handle_error(error, code, transformed_code)
 
             self.globals.update(globals_dict)
 
@@ -607,8 +597,8 @@ parallel = Parallel().parallel()
                 self.memory_manager.objects.clear()
                 gc.collect()
 
-        except Exception as e:
-            print(f'• {e}\n This Error \033[36m\033[1mbecause\033[0m of a bug in the language\n Please report it on GitHub :: \033[34m\033[4mhttps://github.com/RejziDich/RytonLang/issues\033[0m')
+        except traceback as e:
+            print(f'• {e}\n This Error \033[36m\033[1mbecause\033[0m of a bug in the language\n Please report it on GitHub :: \033[34m\033[4mhttps://github.com/CodeLibraty/RytonLang/issues\033[0m')
 
 if __name__ == '__main__':
     RytonOne = SharpyLang()

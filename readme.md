@@ -33,7 +33,7 @@ Ryton - это язык для тех, кто ценит простоту, пр�
 ## Быстрый старт
 - сборка из исходников
 ```bash
-git clone https://github.com/CLt/RytonLang
+git clone https://github.com/CodeLibraty/RytonLang.git
 cd RytonLang
 python3 -m venv ryton_venv
 source ryton_venv/bin/activate
@@ -68,16 +68,8 @@ func Main {
 ```
 *ещё примеры кода см. в* [examples.md](examples.md)
 
-## Структура проекта
-```
-RytonLang/
-├── Interpritator/     # Ядро языка :полностью функционирует:
-├── docs/             # Документация  :в разработке:
-└── tools/            # Инструменты разработки :в разработке:
-```
-
 Лицензия
-Copyright (c) 2024 DichRumpany team. См. [LICENSE](LICENSE) для деталей.
+Copyright (c) 2025 CodeLibraty team. См. [LICENSE](LICENSE) для деталей.
 
 Команда
 - RejziDich - Lead Developer

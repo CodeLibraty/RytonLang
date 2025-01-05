@@ -1,4 +1,5 @@
 from functools import lru_cache
+from textwrap import dedent
 
 import re
 import random
@@ -16,6 +17,7 @@ GUARD_RE   = re.compile(r'guard\s+(.*?)\s+else\s*\{([\s\S]*?)\}')
 IMPORT_RE  = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
 EVENT_RE   = re.compile(r'event\s+(\w+)\s*\{([\s\S]*?)\}')
 MATCH_RE   = re.compile(r'match\s+(\w+)\s*\{([\s\S]*?)\}')
+PROTECT_RE = re.compile(r'protect\s+(\w+)\s*{([\s\S]*?)}')
 WITH_RE    = re.compile(r'with\s+(\w+)\s*\{([\s\S]*?)\}')
 DEFER_RE   = re.compile(r'defer\s*\{([\s\S]*?)\}')
 LAZY_RE    = re.compile(r'lazy\s+(\w+)\s*=\s*(.*)')
@@ -131,25 +133,14 @@ def transform_with(self, code):
 def transform_event(self, code):
     def replace_event(match):
         indent = match.group(1)
-        var1 = match.group(2)
-        var2 = match.group(3)
-        event_code = match.group(4)
-        event_id = f'event_{random.randint(1000, 9999)}'
+        item1 = match.group(2)
+        item2 = match.group(3)
+        code = match.group(4)
 
-        return f"""
-{indent}def {event_id}():
-{indent}    whlo = True
-{indent}    while whlo:
-{indent}        if {var1} == {var2}:
-{indent}            {event_code}
-{indent}            break
-{indent}        else:
-{indent}            timexc.sleep(0.05)
+        result = f"start_event({item1}, {item2}, {code})\n"
+        return result
 
-{indent}thread = threading.Thread(target={event_id})
-{indent}thread.start()\n\n
-"""
-    return re.sub(r'([\t]*)event \s*(.*?)\s* -> \s*(.*?)\s* {\s*(.*?)\s*}', replace_event, code)
+    return re.sub(r'([ \t]*)event \s*(.*?)\s* -> \s*(.*?)\s* {\s*([\s\S]*?)\s*}', replace_event, code)
 
 def transform_guard(self, code):
     def replace_guard(match):
@@ -318,41 +309,6 @@ def transform_run_lang(self, code):
 def transform_void(self, code):
     return re.sub(r'void \s*(pack|func)\s* \s*(\w+)\s*(\s*(.*?)\s*)', r'\1 \2(\3) :\n    pass\n \n#', code)
 
-def transform_pack_slots(self, code):
-    def replace_pack_slots(match):
-        indent = match.group(1)
-        pack_name = match.group(2)
-        inheritance = match.group(3) or ''
-        body = match.group(4)
-        
-        init_match = re.search(r'init\s*:\s*{([\s\S]*?)}', body)
-        if init_match:
-            init_body = init_match.group(1)
-            slots = re.findall(r'self\.(\w+)\s*=', init_body)
-            
-            result = [
-                f"{indent}class {pack_name}{inheritance}:",
-                f"{indent}    __slots__ = ({', '.join(repr(slot) for slot in slots)})",
-                "",
-                f"{indent}    def __init__(self, {', '.join(slots)}):",
-            ]
-            
-            # Добавляем тело init с правильными отступами
-            for line in init_body.strip().split('\n'):
-                result.append(f"{indent}        {line.strip()}")
-            
-            # Добавляем остальные методы
-            other_methods = re.sub(r'init\s*:\s*{[\s\S]*?}', '', body).strip()
-            for line in other_methods.split('\n'):
-                if line.strip():
-                    result.append(f"{indent}    {line.strip()}")
-            
-            return '\n'.join(result)
-            
-        return f"{indent}class {pack_name}{inheritance}:\n{indent}{body}"
-
-    return re.sub(r'([ \t]*)pack\s+(\w+)(\(.*?\))?\s*!slots\s*{([\s\S]*?)}', replace_pack_slots, code)
-
 @lru_cache(maxsize=128)
 def transform_pack(self, code):
     return re.sub(r'pack \s*(\w+)\s*\(\s*(.*?)\s*\) :', r'class \1(\2):', code)
@@ -363,7 +319,7 @@ def transform_pack2(self, code):
 
 @lru_cache(maxsize=128)
 def transform_func(self, code):
-    return re.sub(r'func \s*(\w+)\s*(\s*(.*?)\s*) :', r'def \1\2: ', code)
+    return re.sub(r'func \s*(\w+)\s*\(\s*(.*?)\s*\) :', r'def \1(\2): ', code)
 
 @lru_cache(maxsize=128)
 def transform_func2(self, code):
@@ -385,6 +341,46 @@ def transform_decorators(self, code):
 @lru_cache(maxsize=128)
 def transform_func3(self, code):
     return re.sub(r'func \s*(\w+)\s*\(\s*(.*?)\s*\) -> \s*(.*?)\s*:', r'def \1(\2) -> \3:', code)
+
+def transform_meta_modifiers(self, code):
+    # Словарь соответствия модификаторов и декораторов
+    META_MODIFIERS = {
+        # Для классов (pack)
+        'slots': '@dataclasses.dataclass(slots=True)',
+        'frozen': '@dataclasses.dataclass(frozen=True)',
+        'final': '@final',
+        'singleton': '@singleton',
+        'interface': '@abc.abstractmethod',
+        'immutable': '@immutable',
+        
+        # Для функций (func)
+        'cached': '@lru_cache(maxsize=128)',
+        'async': '@asyncio.coroutine',
+        'pure': '@pure_function',
+        'deprecated': '@deprecated',
+        'profile': '@profile',
+        'validate': '@validate_args',
+        'timeout': '@timeout(seconds=5)',
+        'retry': '@retry(attempts=3)',
+        'trace': '@trace_calls'
+    }
+    
+    def replace_modifier(match):
+        indent = match.group(1)
+        type_keyword = match.group(2)  # pack или func
+        name = match.group(3)
+        modifier = match.group(4)
+        
+        if modifier in META_MODIFIERS:
+            decorator = META_MODIFIERS[modifier]
+            return f"{indent}{decorator}\n{indent}{type_keyword} {name}()"
+            
+        return match.group(0)
+
+    # Паттерн для поиска мета-модификаторов
+    pattern = r'([ \t]*)(def|class)\s+(\w+)\s*!([\w]+)\s*' or r'([ \t]*)(def|class)\s+(\w+)\s*\((.*?)\)!([\w]+)\s*'
+    
+    return re.sub(pattern, replace_modifier, code)
 
 @lru_cache(maxsize=128)
 def transform_pylib(self, code):
@@ -706,7 +702,6 @@ class {chain_name}:
 """
 
     return re.sub(r'chain\s+(\w+)\s*\{([\s\S]*?)\}', replace_chain, code)
-from textwrap import dedent
 
 def transform_intercept(self, code):
     def replace_intercept(match):
@@ -755,6 +750,48 @@ class {name}:
 """
 
     return re.sub(r'state_machine\s+(\w+)\s*\{([\s\S]*?)\}', replace_state, code)
+
+def transform_data(self, code):
+    def replace_data(match):
+        name = match.group(1)
+        fields = match.group(2)
+
+        return f"@dataclass\npack {name} {'{'}{fields}{'}'}"
+    return re.sub(r'data (\w+) \{([\s\S]*?)\}', replace_data, code)
+
+def transform_read(self, code):
+    def replace_read(match):
+        indent = match.group(1)
+        obj1 = match.group(2)
+        obj2 = match.group(3)
+        name = match.group(4)
+        return f"{indent}@readonly\n{indent}{obj2} {name}"
+    return re.sub(r'([ \t]*)(read|validate) (func|pack) (.*?)', replace_read, code)
+
+def transform_lambda(self, code):
+    def replace_lambda(match):
+        params = match.group(1)
+        body = match.group(2)
+        body = body.replace('\n', '')
+
+        return f"lambda {params}: {body}"
+    return re.sub(r'func\s*\((.*?)\)\s*\{([\s\S]*?)\}', replace_lambda, code)
+
+def transform_slots(self, code):
+    def replace_slots(match):
+        fields = match.group(1)
+        return f"__slots__ = ({fields})"
+    return re.sub(r'slots \{([\s\S]*?)\}', replace_slots, code)
+
+def transform_func_oneline(self, code):
+    def replace_func(match):
+        indent = match.group(1)
+        name = match.group(2)
+        params = match.group(3)
+        body = match.group(4)
+
+        return f"{indent}func {name}({params}) :\n{indent}    {body}\n"
+    return re.sub(r'([ \t]*)func\s*(\w+)\s*\((.*?)\)\s* => ([\s\S]*?)\n', replace_func, code)
 
 def transform_macro(self, code):
     macro_pattern = r'macro\s+(\w+)\s*\((.*?)\)\s*\{([\s\S]*?)\}'
@@ -887,9 +924,6 @@ def transform_grouped_args(self, code):
         return f"def {func_name}({', '.join(new_args)}):"
 
     return GROUPED_ARGS_RE.sub(replace_args, code)
-
-
-PROTECT_RE = re.compile(r'protect\s+(\w+)\s*{([\s\S]*?)}')
 
 def transform_protect(self, code):
     def replace_protect(match):
