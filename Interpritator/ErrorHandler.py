@@ -73,26 +73,34 @@ class RytonErrorHandler:
         return ' -> '.join(reversed(hierarchy))
 
     def map_python_to_ryton_line(self, python_line: int, python_code: str, ryton_code: str) -> int:
-        python_lines = python_code.splitlines()
-        ryton_lines = ryton_code.splitlines()
+        # Получаем стек вызовов
+        stack = traceback.extract_stack()
         
-        # Создаем маппинг на основе схожести строк
-        line_mapping = {}
-        for py_idx, py_line in enumerate(python_lines, 1):
-            max_similarity = 0
-            best_match = 1
+        # Находим фрейм с ошибкой
+        error_frame = None
+        for frame in stack:
+            if 'ryton' in frame.filename.lower():
+                error_frame = frame
+                break
+        
+        if error_frame:
+            # Берем реальный номер строки из стека
+            return error_frame.lineno
             
-            for ry_idx, ry_line in enumerate(ryton_lines, 1):
-                # Используем difflib для поиска похожих строк
-                similarity = difflib.SequenceMatcher(None, 
-                    py_line.strip(), ry_line.strip()).ratio()
-                if similarity > max_similarity:
-                    max_similarity = similarity
-                    best_match = ry_idx
-                    
-            line_mapping[py_idx] = best_match
+        # Если не нашли в стеке - используем прямое сопоставление кода
+        py_lines = python_code.splitlines()
+        ry_lines = ryton_code.splitlines()
         
-        return line_mapping.get(python_line, 1)
+        # Ищем строку с ошибкой в исходном коде
+        error_line = py_lines[python_line - 1].strip()
+        
+        # Проходим по коду Ryton и ищем эту же строку
+        for i, line in enumerate(ry_lines):
+            if error_line in line:
+                return i + 1
+                
+        return python_line
+
 
     def format_error_location(self, error, ryton_code: str, python_code: str) -> str:
         exc_type, exc_value, exc_tb = sys.exc_info()
@@ -104,27 +112,28 @@ class RytonErrorHandler:
                 frame = f
                 break
 
-
         if frame:
-            # Находим соответствующую строку в Ryton коде
-            ryton_line = self.map_python_to_ryton_line(
-                frame.lineno, 
-                python_code,
-                ryton_code
-            )
+            lines = code.splitlines()
+            ryton_line = self.map_python_to_ryton_line(frame.lineno, transformed_code, code)
             
-            # Показываем контекст из исходного Ryton кода
-            lines = ryton_code.splitlines()
-            start = max(0, ryton_line - 3)
-            end = min(len(lines), ryton_line + 3)
+            # Add bounds checking
+            if 0 <= ryton_line-1 < len(lines):
+                error_marker = ' ' * (len(str(ryton_line)) + 2) + '^' * len(lines[ryton_line-1].lstrip())
+            else:
+                error_marker = ''
+        # Добавляем вывод фрагмента Ryton кода с подсветкой проблемной строки
+        ryton_lines = ryton_code.splitlines()
+        error_line = self.map_python_to_ryton_line(frame.lineno, python_code, ryton_code)
+        
+        context = []
+        for i in range(max(0, error_line - 2), min(len(ryton_lines), error_line + 3)):
+            prefix = '>> ' if i + 1 == error_line else '   '
+            context.append(f"{prefix}{i+1:4d} | {ryton_lines[i]}")
             
-            context = '\n'.join(
-                f"{i+1}: {line}" 
-                for i, line in enumerate(lines[start:end])
-            )
-            
-            # Добавляем маркер ошибки
-            error_marker = ' ' * (len(str(ryton_line)) + 2) + '^' * len(lines[ryton_line-1].lstrip())
+            if i + 1 == error_line:
+                context.append('     ' + ' ' * len(str(i+1)) + ' | ' + '^' * len(ryton_lines[i].lstrip()))
+                
+        code_context = '\n'.join(context)
 
         terminal_size = shutil.get_terminal_size().columns
         terminal_size_down = terminal_size - 2
@@ -135,9 +144,10 @@ class RytonErrorHandler:
         end = min(len(lines), frame.lineno + 3)
         context = '\n'.join(f"{i+1}: {line}" for i, line in enumerate(lines[start:end]))
 
+        file = f"RYTON FILE: {os.path.basename(self.current_file)}" if self.current_file else "FILE: <string>"
         err_type        = f"ERROR TYPE: {exc_type.__name__}"
         message         = f"MESSAGE: {str(error)}"
-        file            = f"FILE: {os.path.basename(frame.filename)}"
+#        file            = f"FILE: {os.path.basename(frame.filename)}"
         line            = f"LINE: {frame.lineno}"
         block_info      = f"BLOCK: {block.name if block else 'global scope'}"
         block_hierarchy = f"BLOCK HIERARCHY: {self.get_block_hierarchy(block) if block else 'None'}"
@@ -154,7 +164,7 @@ class RytonErrorHandler:
 │{err_type}{indent_err_type}│
 │{message}{indent_message}│
 │{file}{indent_file}│
-│{line}{indent_line}│
+│{code_context}{indent_line}│
 │{block_info}{indent_block_info}│
 │{block_hierarchy}{indent_block_hierarchy}│
 {'╰'+'─'*terminal_size_down+'╯'}

@@ -879,10 +879,11 @@ def transform_zig_tags(self, code):
         return_var = match.group(2).strip()
         
         result = [
-            f"#raw(start)",
+            f"# zig code start",
+            f"{base_indent}#raw(start)",
             f"{base_indent}zig_bridge = ZigBridge()",
             f"{base_indent}{return_var} = zig_bridge.compile_and_run(",
-            f"{base_indent}    zig_code='''{zig_code}''',mode='run',cache=True",
+            f"{base_indent}    zig_code='''\n{zig_code}''',mode='run',cache=True",
             f"{base_indent})\n"
             f"{base_indent}#raw(end)",
         ]
@@ -890,6 +891,32 @@ def transform_zig_tags(self, code):
         return '\n'.join(result)
 
     return re.sub(pattern, replace, code)
+
+def transform_zig_export(self, code):
+    def process_zig_block(match):
+        zig_code = match.group(1)
+        module_name = match.group(2)
+        base_indent = ""  # Base indentation level
+        
+        # Добавляем export для C ABI
+        exports = []
+        for fn_match in re.finditer(r'pub fn (\w+)\((.*?)\)(.*?){', zig_code):
+            fn_name = fn_match.group(1)
+            
+        modified_code = zig_code.replace(f'pub fn', 'export fn') + "\n" + "\n".join(exports)
+
+        result = [
+            f"# zig code start",
+            f"{base_indent}#raw(start)",
+            f"{base_indent}zig_bridge = ZigBridge()",
+#            f"{base_indent}zig_bridge.compile_shared('''{modified_code}''', '{module_name}'\n)",
+            f"{base_indent}{module_name} = zig_bridge.load_functions('''{modified_code}''', '{module_name}')",
+            f"{base_indent}#raw(end)",
+        ]
+
+        return '\n'.join(result)
+
+    return re.sub(r'#ZigModule\(([\s\S]*?)\)\s*->\s*(\w+)', process_zig_block, code)
 
 def transform_doc_comments(self, code):
     def replace_doc(match):

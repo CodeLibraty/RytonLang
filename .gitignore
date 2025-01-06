@@ -11,7 +11,7 @@ dist/
 # Zig окружение
 Interpritator/ZigLang/lib/*
 Interpritator/ZigLang/zig
-
+Interpritator/ZigLAng/exports/*
 # все файлы сборок
 tests/**/dist/
 tests/**/build/

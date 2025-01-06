@@ -2,21 +2,60 @@
 module import {
     std.lib
     std.RunTimer[timeit]
+    ZigLang.Bridge[ZigBridge]
 }
 
 trash_cleaner = true
 
-void func Main {}
+pylib: random
 
-pack Test {
-    slots {'test_var', 'test_var2'}
-    init {
-        this.test_var = '99'
-        this.test_var2 = 2
+#ZigModule(
+const std = @import("std");
+
+pub fn matrixMultiply(a: [*]f64, b: [*]f64, result: [*]f64, size: usize) void {
+    var i: usize = 0;
+    while (i < size) : (i += 1) {
+        var j: usize = 0;
+        while (j < size) : (j += 1) {
+            var sum: f64 = 0;
+            var k: usize = 0;
+            while (k < size) : (k += 1) {
+                sum += a[i * size + k] * b[k * size + j];
+            }
+            result[i * size + j] = sum;
+        }
     }
-    <timeit>
-    func test_func(this) => return this.test_var + this.test_var2
+}
+) -> matrix_ops
+
+func matrix_multiply_ryton(a, b) {
+    size = len(a)
+    result = [[0.0] * size for _ in range(size)]
+    
+    // Convert to flat arrays for Zig
+    flat_a = [item for row in a for item in row]
+    flat_b = [item for row in b for item in row]
+    flat_result = [0.0] * (size * size)
+    
+    matrix_ops.matrixMultiply(flat_a, flat_b, flat_result, size)
+    
+    // Convert back to 2D array
+    return [[flat_result[i * size + j] for j in range(size)] for i in range(size)]
 }
 
-Test = Test()
-print(Test.test_func())
+func Main {
+    size = 1000
+    matrix_a = [[random.random() for _ in range(size)] for _ in range(size)]
+    matrix_b = [[random.random() for _ in range(size)] for _ in range(size)]
+    
+    start = timexc.time()
+    zig_result = matrix_ops.matrixMultiply(matrix_a, matrix_b)
+    zig_time = timexc.time() - start
+    
+    start = timexc.time()
+    ryton_result = matrix_multiply_ryton(matrix_a, matrix_b)
+    ryton_time = timexc.time() - start
+    
+    print(f"Zig took {zig_time} seconds")
+    print(f"Ryton took {ryton_time} seconds")
+}

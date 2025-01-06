@@ -1,12 +1,14 @@
 from pathlib import Path
 import subprocess
 import hashlib
+import ctypes
 import os
 
 class ZigBridge:
     def __init__(self):
         self.cache_dir = Path(".zig_cache")
         self.cache_dir.mkdir(exist_ok=True)
+        self.export_path = Path("Interpritator/ZigLang/exports")
 
     def _run_binary(self, binary_path):
         result = subprocess.run(
@@ -15,6 +17,29 @@ class ZigBridge:
             text=True
         )
         return result.stdout
+
+    def compile_shared(self, zig_code, module_name):
+        # Сохраняем текущую директорию
+        current_dir = os.getcwd()
+
+        try:
+            # Переходим в директорию компиляции
+            os.chdir(self.export_path)
+
+            # Компилируем Zig код в разделяемую библиотеку
+            with open(f"{module_name}.zig", "w") as f:
+                f.write(zig_code)
+
+            os.system(f"../zig build-lib {module_name}.zig -dynamic")
+        finally:
+            # Возвращаемся в исходную директорию
+            os.chdir(current_dir)
+
+    def load_functions(self, zig_code, module_name):
+        # Загружаем функции из скомпилированной библиотеки
+        self.compile_shared(zig_code, module_name)
+        lib = ctypes.CDLL(f"{self.export_path}/lib{module_name}.so")
+        return lib
 
     def compile_and_run(self, zig_code: str, mode="bin", cache=True):
         if cache:

@@ -1,6 +1,7 @@
-const std = @import("std");
-    const print = std.debug.print;
 
-    pub fn main() void {
-        print("Hello From Zig\n", .{});
+const std = @import("std");
+
+    pub fn main() i64 {
+        const num = 10;
+        return num;
     }

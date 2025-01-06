@@ -1,3 +1,4 @@
+# Необхадимые питон модули для работы языка
 from importlib import import_module
 from functools import lru_cache
 from collections import deque
@@ -19,6 +20,7 @@ import io
 import os
 import gc
 
+# Необхадимые компоненты языка
 from .ErrorHandler import *
 
 from .Effects import *
@@ -28,6 +30,9 @@ from .SyntaxAnalyzer import *
 from .SyntaxTransformer import *
 from .MemoryManager import MemoryManager
 from .PackageSystem import PackageSystem
+
+# Подключение модулей языка
+from .ZigLang.Bridge import ZigBridge
 
 
 # Предкомпиляция и кэширование регулярных выражений
@@ -41,7 +46,8 @@ class SharpyLang:
         'compiled_functions', 'package_system', 'dsls',
         'PACKAGE_IMPORT_RE', 'imported_libs', 'user_vars',
         'transformation_cache', 'IMPORT_RE', 'compiled_cache', 
-        'memory_manager', 'trash_cleaner', 'module_mapping'
+        'memory_manager', 'trash_cleaner', 'module_mapping',
+        'zig_bridge'
     )
 
     def __init__(self):
@@ -65,13 +71,14 @@ class SharpyLang:
         self.pragma_handler   = PragmaHandler()
         self.package_system   = PackageSystem()
         self.memory_manager   = MemoryManager()
-        self.module_mapping   = {
-            'ZigLang': 'ZigLang',       'ZigLang.Bridge': 'ZigLang.Bridge',
+        self.zig_bridge       = ZigBridge()
+        self.module_mapping = {
+            'ZigLang': 'ZigLang',    'ZigLang.Bridge': 'ZigLang.Bridge',
             'std':   'std',
 
-            'std.HyperConfigFormat':   'std.HyperConfigFormat',
-            'std.RuVix.Effects':       'std.RuVix.Effects',
-            'std.RuVix.App':           'std.RuVix.App,pygame',
+            'std.HyperConfigFormat': 'std.HyperConfigFormat',
+            'std.RuVix.Effects':     'std.RuVix.Effects',
+            'std.RuVix.App':         'std.RuVix.App,pygame',
 
             'TrixD':           'TrixD',
             'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
@@ -206,6 +213,7 @@ class SharpyLang:
     def transform_syntax(self, code):
         # Следом Обработка меж-языковых тегов и импортов
         code = transform_zig_tags(self, code)
+        code = transform_zig_export(self, code)
         # Сохраняем блоки кода других языков
         protected_code, raw_blocks = self.protect_raw_blocks(code)
 
@@ -484,6 +492,7 @@ from stdFunction import *
 
 from jpype import *
 from cffi import FFI
+from ZigLang.Bridge import ZigBridge
 import ctypes.util
 
 import os as osystem
