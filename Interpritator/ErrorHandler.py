@@ -16,17 +16,104 @@ class CodeBlock:
     parent: Optional['CodeBlock'] = None
     children: List['CodeBlock'] = None
 
+@dataclass
+class ErrorTrace:
+    file: str
+    line: int
+    function: str
+    code: str
+
+class ExecutionTracer:
+    def __init__(self):
+        self.call_stack = []
+        self.error_methods = set()
+        self.execution_log = []
+        
+    def __call__(self, frame, event, arg):
+        if event == 'call':
+            func_name = frame.f_code.co_name
+            if func_name != '<module>':  # Пропускаем системные вызовы
+                self.execution_log.append(f"Called: {func_name}")
+                
+        elif event == 'exception':
+            exc_type, exc_value, _ = arg
+            func_name = frame.f_code.co_name
+            if func_name != '<module>':
+                self.error_methods.add(func_name)
+                self.execution_log.append(f"Error in {func_name}: {exc_type.__name__}")
+                
+        return self
+
+    def get_trace_report(self):
+        report = []
+        if self.error_methods:
+            report.extend([
+                "Problematic Methods:",
+                *[f"• {method}" for method in self.error_methods],
+                ""
+            ])
+        if self.execution_log:
+            report.extend([
+                "Execution Path:",
+                *[f"→ {entry}" for entry in self.execution_log]
+            ])
+        return report
+
 class RytonErrorHandler:
     def __init__(self):
-        # New functionality 
-        self.blocks: Dict[str, CodeBlock] = {}
+        self.blocks = {}
         self.current_blocks = []
-        self.error_history  = []
-        self.block_stack    = []
+        self.error_history = []
+        self.block_stack = []
         self.max_history = 10
         self.current_file = None
-        self.traceback    = False
-        self.pycode       = False
+        self.traceback = True  # Включаем по умолчанию
+        self.pycode = False
+        self.trace_stack = []
+        self.tracer = ExecutionTracer()
+        self.is_handling_error = False
+        self.recursion_limit = 100
+        self.current_recursion = 0
+        self.RED = "\033[31m"
+        self.RESET = "\033[0m"
+        self.terminal_size = shutil.get_terminal_size().columns
+
+    def start_tracing(self):
+        sys.settrace(self.tracer)
+        
+    def stop_tracing(self):
+        sys.settrace(None)
+        
+    def get_error_methods(self):
+        return list(self.tracer.error_methods)
+        
+    def get_execution_log(self):
+        return self.tracer.execution_log
+
+    def _create_error_box(self, lines: list, width: int, type: str) -> str:
+        # Создаем красивую рамку с цветным выделением
+        box_lines = ['├' + '─'*4 +f'{self.RED}{type}{self.RESET}' + '─' * (width - len(type) - 6) + '╮']
+        
+        for line in lines:
+            # Добавляем отступы и вертикальные линии
+            padding = ' ' * (width - len(line) - 3)
+            box_lines.append(f'│ {line}{padding}│')
+        
+        # Закрываем рамку
+        box_lines.append('├' + '─' * (width - 2) + '╯')
+        
+        return '\n'.join(box_lines)
+
+    def print_trace_report(self):
+        report = [
+            "Problematic Methods:",
+            *[f"• {method}" for method in self.get_error_methods()],
+            "",
+            "Execution Log:",
+#            *[f"→ {entry}" for entry in self.get_execution_log()]
+        ]
+        
+        print(self._create_error_box(report, self.terminal_size, "⏎ RyBack Trace"))
 
     def enter_block(self, block_name):
         self.current_blocks.append(block_name)
@@ -105,22 +192,14 @@ class RytonErrorHandler:
     def format_error_location(self, error, ryton_code: str, python_code: str) -> str:
         exc_type, exc_value, exc_tb = sys.exc_info()
         frames = inspect.getinnerframes(exc_tb)
-        
-        frame = None
-        for f in frames:
-            if 'ryton' in f.filename.lower():
-                frame = f
+
+        # Ищем реальное место ошибки
+        original_line = None
+        for frame in frames:
+            if 'test.ry' in frame.filename:  # Ищем исходный файл Ryton
+                original_line = frame.lineno
                 break
 
-        if frame:
-            lines = code.splitlines()
-            ryton_line = self.map_python_to_ryton_line(frame.lineno, transformed_code, code)
-            
-            # Add bounds checking
-            if 0 <= ryton_line-1 < len(lines):
-                error_marker = ' ' * (len(str(ryton_line)) + 2) + '^' * len(lines[ryton_line-1].lstrip())
-            else:
-                error_marker = ''
         # Добавляем вывод фрагмента Ryton кода с подсветкой проблемной строки
         ryton_lines = ryton_code.splitlines()
         error_line = self.map_python_to_ryton_line(frame.lineno, python_code, ryton_code)
@@ -135,9 +214,6 @@ class RytonErrorHandler:
                 
         code_context = '\n'.join(context)
 
-        terminal_size = shutil.get_terminal_size().columns
-        terminal_size_down = terminal_size - 2
-        terminal_size_up = terminal_size - 13
         block = self.find_block_for_line(frame.lineno, frame.filename)
         lines = ryton_code.splitlines()
         start = max(0, frame.lineno - 3)
@@ -147,42 +223,53 @@ class RytonErrorHandler:
         file = f"RYTON FILE: {os.path.basename(self.current_file)}" if self.current_file else "FILE: <string>"
         err_type        = f"ERROR TYPE: {exc_type.__name__}"
         message         = f"MESSAGE: {str(error)}"
-#        file            = f"FILE: {os.path.basename(frame.filename)}"
+        file            = f"FILE: {os.path.basename(frame.filename)}"
         line            = f"LINE: {frame.lineno}"
         block_info      = f"BLOCK: {block.name if block else 'global scope'}"
         block_hierarchy = f"BLOCK HIERARCHY: {self.get_block_hierarchy(block) if block else 'None'}"
 
-        indent_err_type        = ' ' * (terminal_size_down - len(err_type))
-        indent_message         = ' ' * (terminal_size_down - len(message))
-        indent_file            = ' ' * (terminal_size_down - len(file))
-        indent_line            = ' ' * (terminal_size_down - len(line))
-        indent_block_info      = ' ' * (terminal_size_down - len(block_info))
-        indent_block_hierarchy = ' ' * (terminal_size_down - len(block_hierarchy))
+        ERROR = "⚠ Error"
 
-        error_msg = f"""
-{'╭'+'────\033[31m⚠ Error\033[0m'+'─'*terminal_size_up+'╮'}
-│{err_type}{indent_err_type}│
-│{message}{indent_message}│
-│{file}{indent_file}│
-│{code_context}{indent_line}│
-│{block_info}{indent_block_info}│
-│{block_hierarchy}{indent_block_hierarchy}│
-{'╰'+'─'*terminal_size_down+'╯'}
-        """
-        self.error_history.append(error_msg)
+        error_msg = [
+            f"{err_type}",
+            f"{message}",
+            f"{file}",
+            f"{line}",
+            f"{block_info}",
+            f"{block_hierarchy}"
+        ]
+
+        err_out = self._create_error_box(error_msg, self.terminal_size, ERROR)
+
+
+        self.error_history.append(err_out)
         if len(self.error_history) > self.max_history:
             self.error_history.pop(0)
-        return error_msg
+        return err_out
 
     def print_traceback(self):
         pass
 
-    def handle_error(self, error, code: str, transformed_code: str):
-        # Original functionality
-        block_name = self.get_current_block()
+    def handle_error(self, error, code, transformed_code):
+        # Защита от рекурсии
+        if self.is_handling_error:
+            return
+            
+        self.is_handling_error = True
+        try:
+            self.current_recursion += 1
+            if self.current_recursion > self.recursion_limit:
+                print("Превышен лимит рекурсии при обработке ошибок")
+                return
 
-        # New detailed error info
-        print(self.format_error_location(error, code, transformed_code))
+            # Выводим отчет
+            print("\n╭ Program Error")
+            self.print_trace_report()
+            print(self.format_error_location(error, code, transformed_code))
+
+        finally:
+            self.is_handling_error = False
+            self.current_recursion -= 1
 
 class RytonError(Exception):
     def __init__(self, message, line_number=None, column=None, block_name=None):

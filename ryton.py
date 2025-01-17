@@ -1,60 +1,57 @@
-import sys
 import os
-import argparse
+import sys
 from Interpritator.Core import SharpyLang
 
-def create_parser():
-    parser = argparse.ArgumentParser(description='Ryton Language CLI')
-    parser.add_argument('file', nargs='?', help='Path to Ryton source file')
-    parser.add_argument('-r', '--run', help='Execute Ryton code directly')
-    parser.add_argument('-v', '--version', action='version', version='Ryton 1.0')
-    parser.add_argument('-c', '--check', action='store_true', help='Check syntax only')
-    parser.add_argument('-o', '--optimize', action='store_true', help='Enable optimizations')
-    return parser
-
-def read_file(filepath):
-    with open(filepath, 'r', encoding='utf-8') as f:
-        return f.read()
+def setup_ryton_environment():
+    if getattr(sys, 'frozen', False):
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.dirname(__file__)
+        
+    os.environ['RYTON_HOME'] = base_path
+    os.environ['RYTON_STDLIB'] = os.path.join(base_path, 'Interpritator/std')
+    
+    sys.path.insert(0, os.path.join(base_path, 'Interpritator'))
+    sys.path.insert(0, os.path.join(base_path, 'Interpritator/std'))
+    
+    current_dir = os.getcwd()
+    os.environ['RYTON_PACKAGES'] = current_dir
+    sys.path.insert(0, current_dir)
 
 def main():
-    parser = create_parser()
-    args = parser.parse_args()
+    setup_ryton_environment()
+    ryton = SharpyLang(os.getcwd())
     
-    ryton = SharpyLang()
-
-    if args.run:
-        # Выполнение кода напрямую из командной строки
-        ryton.execute(args.run)
+    if len(sys.argv) < 2:
+        print("Using:")
+        print("ryton run file.ry - run file")
+        print("ryton compile file.ry - compile to bitecode")
+        print("ryton exec file.ryc - execute bytecode file")
         return
 
-    if not args.file:
-        print("Error: No input file specified")
-        parser.print_help()
+    command = sys.argv[1]
+    if len(sys.argv) < 3:
+        print("Enter File")
         return
 
-    if not os.path.exists(args.file):
-        print(f"Error: File {args.file} not found")
-        return
+    filename = sys.argv[2]
 
-    try:
-        code = read_file(args.file)
-        
-        if args.check:
-            # Только проверка синтаксиса
-            ryton.check_syntax(code)
-            print("Syntax check passed successfully")
-            return
-            
-        if args.optimize:
-            # Включаем оптимизации
-            ryton.trash_cleaner = True
-            
-        # Выполняем код
-        ryton.execute(code)
-        
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        sys.exit(1)
+    if command == "run":
+        with open(filename, 'r', encoding='utf-8') as f:
+            code = f.read()
+            ryton.run(code)
+
+    elif command == "compile":
+        with open(filename, 'r', encoding='utf-8') as f:
+            code = f.read()
+            output = os.path.splitext(filename)[0]
+            ryton.compile(code, output)
+
+    elif command == "exec":
+        ryton.exec(filename)
+
+    else:
+        print(f"Command Not Found: {command}")
 
 if __name__ == '__main__':
     main()

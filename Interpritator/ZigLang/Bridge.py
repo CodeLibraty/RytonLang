@@ -5,10 +5,10 @@ import ctypes
 import os
 
 class ZigBridge:
-    def __init__(self):
+    def __init__(self, src_dir='./'):
         self.cache_dir = Path(".zig_cache")
         self.cache_dir.mkdir(exist_ok=True)
-        self.export_path = Path("Interpritator/ZigLang/exports")
+        self.export_path = Path(src_dir)
 
     def _run_binary(self, binary_path):
         result = subprocess.run(
@@ -30,7 +30,7 @@ class ZigBridge:
             with open(f"{module_name}.zig", "w") as f:
                 f.write(zig_code)
 
-            os.system(f"../zig build-lib {module_name}.zig -dynamic")
+            os.system(f"./Interpritator/ZigLang/zig build-lib {module_name}.zig -dynamic")
         finally:
             # Возвращаемся в исходную директорию
             os.chdir(current_dir)

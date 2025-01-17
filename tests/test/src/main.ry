@@ -1,12 +1,18 @@
 
 module import {
-	std.Terminal
+	ZigLang.Bridge[ZigBridge]
 }
 
 trash_cleaner = true
 
-func main {
-	print('Hello Ryton Bundle Builder!')
-}
+void func Main() {}
 
-main()
+#ZigModule(
+const std = @import("std");
+
+pub fn adda(a: i32, b: i32) i32 {
+    return a + b * a * b;
+}
+) -> maht
+
+print(maht.adda(1, 2))

@@ -26,14 +26,15 @@ from .ErrorHandler import *
 from .Effects import *
 from .Pragma import *
 
+from .Macro import *
+
 from .SyntaxAnalyzer import *
 from .SyntaxTransformer import *
+from .OOPIR import *
+from .DateIR import *
+
 from .MemoryManager import MemoryManager
 from .PackageSystem import PackageSystem
-
-# Подключение модулей языка
-from .ZigLang.Bridge import ZigBridge
-
 
 # Предкомпиляция и кэширование регулярных выражений
 TRASH_CLEANER_RE  = re.compile(r'trash_cleaner\s*=\s*(true|false)')
@@ -47,10 +48,10 @@ class SharpyLang:
         'PACKAGE_IMPORT_RE', 'imported_libs', 'user_vars',
         'transformation_cache', 'IMPORT_RE', 'compiled_cache', 
         'memory_manager', 'trash_cleaner', 'module_mapping',
-        'zig_bridge'
+        'src_dir', 'compile_time_macros', 'tracer'
     )
 
-    def __init__(self):
+    def __init__(self, src_dir_project):
         self.imported_libs = set()
         self.transformation_cache = {}
         self.compiled_functions   = {}
@@ -65,13 +66,16 @@ class SharpyLang:
         self.IMPORT_RE         = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
         self.PACKAGE_IMPORT_RE = re.compile(r'package\s+import\s*\{([\s\S]*?)\}')
 
-        self.error_handler    = RytonErrorHandler()
-        self.effect_registry  = EffectRegistry()
-        self.syntax_analyzer  = SyntaxAnalyzer()
-        self.pragma_handler   = PragmaHandler()
-        self.package_system   = PackageSystem()
-        self.memory_manager   = MemoryManager()
-        self.zig_bridge       = ZigBridge()
+        self.src_dir = src_dir_project
+
+        self.compile_time_macros = CompileTimeMacro()
+        self.error_handler   = RytonErrorHandler()
+        self.tracer          = ExecutionTracer()
+        self.effect_registry = EffectRegistry()
+        self.syntax_analyzer = SyntaxAnalyzer()
+        self.pragma_handler  = PragmaHandler()
+        self.package_system  = PackageSystem()
+        self.memory_manager  = MemoryManager()
         self.module_mapping = {
             'ZigLang': 'ZigLang',    'ZigLang.Bridge': 'ZigLang.Bridge',
             'std':   'std',
@@ -209,6 +213,9 @@ class SharpyLang:
             code = code.replace(key, block)
         return code
 
+    def currect_src_dir(self):
+        return self.src_dir
+
     @lru_cache(maxsize=128)
     def transform_syntax(self, code):
         # Следом Обработка меж-языковых тегов и импортов
@@ -218,8 +225,9 @@ class SharpyLang:
         protected_code, raw_blocks = self.protect_raw_blocks(code)
 
         # Потом Уже проверяем синтаксис
-        self.syntax_analyzer.analyze(code)
-    
+        self.syntax_analyzer.code_init(code)
+        self.syntax_analyzer.analyze('pycode', code)
+
         # Обработка импортов библиотек
         code = protected_code
         code = self.IMPORT_RE.sub(self.process_imports, code)
@@ -259,11 +267,13 @@ class SharpyLang:
 
         code = re.sub(r'\n\}\)', r'\}\)', code)
 
+        code = transform_compile_time_macro(self, code)
         code = transform_macro(self, code)
         code = transform_state_machine(self, code)
         code = transform_intercept(self, code)
 #        code = transform_chain(self, code)
 
+        code = OOP_Transformation(self, code)
         code = transform_reactive(self, code)
         code = transform_lambda(self, code)
         code = transform_special_operators(self, code)
@@ -336,6 +346,8 @@ class SharpyLang:
         code = transform_match(self, code)
         code = transform_programm_cleanup(self, code)
         code = transform_run_lang(self, code)
+        code = transform_one_line_try_elerr(self, code)
+        code = transform_one_line_try(self, code)
         code = transform_elerr(self, code)
         code = transform_elerr2(self, code)
         code = transform_elerr3(self, code)
@@ -350,7 +362,7 @@ class SharpyLang:
         code = transform_func(self, code)
         code = transform_pack(self, code)
         code = transform_slots(self, code)
-        code = transform_meta_modifiers(self, code)
+        code = transform_legasy_pack(self, code)
         code = transform_info_programm(self, code)
         code = transform_start_programm(self, code)
         code = transform_init(self, code)
@@ -502,7 +514,7 @@ import threading
 from asyncio import *
 
 parallel = Parallel().parallel()
-        '''
+'''
         
         final_code = imports + transformed_code + '\nMain()'
         
@@ -524,8 +536,7 @@ parallel = Parallel().parallel()
         # Создаем глобальное окружение
         globals_dict = {
             'gc': gc,
-            'compile_to_bytecode': self.compile_to_bytecode_decorator,
-            'self': self,
+            'Core': self,
         }
         
         # Выполняем байткод
@@ -544,6 +555,7 @@ from stdFunction import *
 
 from jpype import *
 from cffi import FFI
+from ZigLang.Bridge import ZigBridge
 import ctypes.util
 
 import os as osystem
@@ -552,8 +564,7 @@ import time as timexc
 import threading
 from asyncio import *
 
-parallel = Parallel().parallel()
-            '''
+parallel = Parallel().parallel()'''
 
             call_main = '\nMain()'
 
@@ -562,7 +573,7 @@ parallel = Parallel().parallel()
             # Добавляем вывод кода с номерами строк
             lines = transformed_code.split('\n')
             for i, line in enumerate(lines, 1):
-                print(f"{i:3d} | {line}")
+                print(f"{i:3d} │ {line}")
 
             # Кэширование скомпилированного кода
             code_hash = hash(transformed_code)
@@ -572,23 +583,23 @@ parallel = Parallel().parallel()
             # Выполняем скомпилированный код
             globals_dict = {
                 'gc': gc,
-                'compile_to_bytecode': self.compile_to_bytecode_decorator,
-                'self': self,
+                'Core': self,
             }
 
             try:
+                self.error_handler.start_tracing()
                 exec(self.compiled_cache[code_hash], globals_dict)
             except SyntaxError as e:
-                # Обрабатываем ошибки синтаксиса отдельно
-                error = RytonSyntaxError(str(e), e.lineno, e.offset, code)
+                self.error_handler.stop_tracing()
+                self.error_handler.handle_error(error, code, transformed_code)
+            except traceback as e:
+                self.error_handler.stop_tracing()
                 self.error_handler.handle_error(error, code, transformed_code)
             except Exception as e:
-                # Обрабатываем все остальные ошибки
-                if hasattr(e, 'lineno'):
-                    error = RytonError(str(e), e.lineno, getattr(e, 'offset', None), code)
-                else:
-                    error = RytonError(str(e), None, None, code)
+                self.error_handler.stop_tracing()
                 self.error_handler.handle_error(error, code, transformed_code)
+            finally:
+                self.error_handler.stop_tracing()
 
             self.globals.update(globals_dict)
 
@@ -606,8 +617,14 @@ parallel = Parallel().parallel()
                 self.memory_manager.objects.clear()
                 gc.collect()
 
-        except traceback as e:
-            print(f'• {e}\n This Error \033[36m\033[1mbecause\033[0m of a bug in the language\n Please report it on GitHub :: \033[34m\033[4mhttps://github.com/CodeLibraty/RytonLang/issues\033[0m')
+            os._exit(0)
+
+        except Exception as e:
+            self.tracer.execution_log
+            self.error_handler.stop_tracing()
+            self.error_handler.handle_error(e, code, transformed_code)
+            print(f'• This Error \033[36m\033[1m-perhaps-\033[0m of a bug in the language\n Please report it on GitHub :: \033[34m\033[4mhttps://github.com/CodeLibraty/RytonLang/issues\033[0m')
+            os._exit(1)
 
 if __name__ == '__main__':
     RytonOne = SharpyLang()

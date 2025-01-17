@@ -409,11 +409,8 @@ try {
 Это пример демонстрирует качественной и простой в написании командной обочки для posix систем
 
 - Пример использования Zig интеграции:
+1. исполняет код на месте:
 ```ryton
-module import {
-    ZigLang.Bridge[ZigBridge]
-}
-
 trash_cleaner = true
 
 func Main {
@@ -429,3 +426,22 @@ func Main {
 }
 ```
 В этом примере мы используем интеграцию с Zig, чтобы вызвать скомпилировать и запустить простой код на Zig
+2. создание модуля на Zig:
+```ryton
+trash_cleaner = true
+func Main {
+    print("Hello From Ryton")
+    #ZigModule(
+    const std = @import("std");
+    const print = std.debug.print;
+
+    pub fn main() void {
+        print("Hello From Zig\\n", .{});
+    }
+    ) -> hello_world // модуль будет называться hello_world
+
+    hello_world.main() // вызываем функцию из модуля
+    и получеам в терминал "Hello From Zig"
+}
+```
+в этом примере мы используем интеграцию с Zig, чтобы создать модуль на Zig и вызвать функцию из него

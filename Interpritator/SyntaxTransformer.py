@@ -90,6 +90,12 @@ def transform_elerr3(self, code):
 def transform_elerr4(self, code):
     return re.sub(r'elerr :', r'except :', code)
 
+def transform_one_line_try_elerr(self, code):
+    return re.sub(r'([ \t]*)try\s*{([^}]*?)}\s*elerr\s*(.*?)\s*{([^}]*?)}', r'\1try:\1    \2\n\1except \3:\n\1   \4', code)
+
+def transform_one_line_try(self, code):
+    return re.sub(r'([ \t]*)try\s*{([^}]*?)}', r'\1try: \2\n\1except:\n\1    pass', code)
+
 def transform_neural(self, code):
     def replace_neural(match):
         indent = match.group(1)
@@ -263,14 +269,14 @@ def transform_debug_blocks(self, code):
     def replace_block(match):
         block_name = match.group(1)
         start_line = code[:match.start()].count('\n') + 1
-        return f'self.error_handler.register_block("{block_name}", {start_line})\n'
+        return f'Core.error_handler.register_block("{block_name}", {start_line})\n'
 
     return re.sub(r'#block\(([^)]+)\)', replace_block, code)
 
 def transform_block_end(self, code):
     def replace_end(match):
         end_line = code[:match.start()].count('\n') + 1
-        return f'self.error_handler.end_block({end_line})\n'
+        return f'Core.error_handler.end_block({end_line})\n'
 
     return re.sub(r'#end_block', replace_end, code)
 
@@ -366,21 +372,17 @@ def transform_meta_modifiers(self, code):
     }
     
     def replace_modifier(match):
-        indent = match.group(1)
-        type_keyword = match.group(2)  # pack или func
-        name = match.group(3)
-        modifier = match.group(4)
+        name = match.group(1)
+        arg = match.group(2) or ''
+        modifier = match.group(3)
         
         if modifier in META_MODIFIERS:
-            decorator = META_MODIFIERS[modifier]
-            return f"{indent}{decorator}\n{indent}{type_keyword} {name}()"
+            modifer = META_MODIFIERS[modifier]
+            return f" {name}({arg}) !{modifer} {'{'}"
             
         return match.group(0)
-
-    # Паттерн для поиска мета-модификаторов
-    pattern = r'([ \t]*)(def|class)\s+(\w+)\s*!([\w]+)\s*' or r'([ \t]*)(def|class)\s+(\w+)\s*\((.*?)\)!([\w]+)\s*'
     
-    return re.sub(pattern, replace_modifier, code)
+    return re.sub(r' (\w+)(?:\((.*?)\))? !(\w+) \{', replace_modifier, code)
 
 @lru_cache(maxsize=128)
 def transform_pylib(self, code):
@@ -448,7 +450,60 @@ def protect_tables(self, code):
     
     return re.sub(r'table\s+(\w+)\s*=\s*\{([\s\S]*?)\}', pack_table, code)
 
+def OOP_Transformation(self, code):
+    # Классы: с/без наследования, с/без метамодификаторов
+    class_patterns = [
+        r'pack\s+(\w+)\:\:(\w+)\s*!(\w+)',    # pack Name::Parent !mod
+        r'pack\s+(\w+)\:\:(\w+)',             # pack Name::Parent
+        r'pack\s+(\w+)\s*!(\w+)',             # pack Name !mod
+        r'pack\s+(\w+)\s*',                   # pack Name
+    ]
+    
+    for pattern in class_patterns:
+        matches = re.finditer(pattern, code)
+        for match in matches:
+            groups = match.groups()
+            if len(groups) == 3:  # С наследованием и модификатором
+                name, parent, mod = groups
+                template = f'@{mod}\nclass {name}({parent})'
+            elif len(groups) == 2:
+                if '::' in match.group(0):  # Только наследование
+                    name, parent = groups
+                    template = f'class {name}({parent})'
+                else:  # Только модификатор
+                    name, mod = groups
+                    template = f'@{mod}\nclass {name}'
+            code = re.sub(re.escape(match.group(0)), template, code)
 
+    # Функции: с/без аргументов, с/без метамодификаторов
+    func_patterns = [
+        r'func\s+(\w+)\s*\(([^)]+)\)\s*!(\w+)\s*',  # func name(args) !mod:
+        r'func\s+(\w+)\s*\(([^)]+)\)\s*',           # func name(args):
+        r'func\s+(\w+)\s*!(\w+)\s*',                # func name !mod:
+        r'func\s+(\w+)\s*'                          # func name:
+    ]
+
+    for pattern in func_patterns:
+        matches = re.finditer(pattern, code)
+        for match in matches:
+            groups = match.groups()
+            if len(groups) == 3:  # С аргументами и модификатором
+                name, args, mod = groups
+                template = f'\n@{mod}\ndef {name}({args})'
+            elif len(groups) == 2:
+                if '(' in match.group(0):  # Только аргументы
+                    name, args = groups
+                    template = f'\ndef {name}({args})'
+                else:  # Только модификатор
+                    name, mod = groups
+                    template = f'\n@{mod}\ndef {name}()'
+            else:  # Без аргументов и модификаторов
+                name = groups[0]
+                template = f'\ndef {name}()'
+            
+            code = re.sub(re.escape(match.group(0)), template, code)
+
+    return code
 
 @lru_cache(maxsize=128)
 def transform_contracts_body(self, code):
@@ -793,6 +848,18 @@ def transform_func_oneline(self, code):
         return f"{indent}func {name}({params}) :\n{indent}    {body}\n"
     return re.sub(r'([ \t]*)func\s*(\w+)\s*\((.*?)\)\s* => ([\s\S]*?)\n', replace_func, code)
 
+def transform_legasy_pack(self, code):
+    def replace_children_pack(match):
+        indent = match.group(1)
+        name = match.group(2)
+        super_class = match.group(3)
+        meta_modifer = match.group(4) or ''
+
+        return f"{indent}pack {name}({super_class}) {meta_modifer} :"
+        
+    return re.sub(r'([ \t]*)pack \s*(\w+)\s*\|(.*?)(?:\s+(.*?))? :', replace_children_pack, code)
+
+
 def transform_macro(self, code):
     macro_pattern = r'macro\s+(\w+)\s*\((.*?)\)\s*\{([\s\S]*?)\}'
     macros = {}
@@ -819,6 +886,44 @@ def transform_macro(self, code):
         code = re.sub(rf'{macro_name}\((.*?)\)', expand_this_macro, code)
         
     return code
+
+def transform_compile_time_macro(self, code):
+    def process_macro(match):
+        macro_name = match.group(1)
+        target_type = match.group(2)
+        generate_block = match.group(3)
+        TAB = '    '
+        
+        generators = []
+        for line in generate_block.split('\n'):
+            if 'func' in line:
+                fn_template = re.search(r'func\s+(.*?)\((.*?)\)\s*->\s*(.*?)\s*{', line)
+                if fn_template:
+                    name_pattern = fn_template.group(1)
+                    args = fn_template.group(2)
+                    return_type = fn_template.group(3)
+                    generators.append({
+                        'type': 'function',
+                        'pattern': name_pattern,
+                        'args': args,
+                        'return': return_type
+                    })
+                    
+        result = [
+            f"def {macro_name}_generator(target_type):",
+            f"    generated_code = []",
+            f"    for field in target_type.__annotations__:",
+            f"        field_type = target_type.__annotations__[field]",
+            f"        template = f\"def get_{{field}}(self):\\n    return self.{{field}}\"",
+            f"        generated_code.append(template)",
+            f"    return '\\n'.join(generated_code)"
+        ]
+        
+        return '\n'.join(result)
+
+    return re.sub(r'macro\s+@(\w+)\(target:\s*(\w+)\)\s*{\s*generate\s*{([\s\S]*?)}\s*}', 
+                 process_macro, code)
+
 
 def transform_contracts(self, code):
     def replace_contract(match):
@@ -894,9 +999,9 @@ def transform_zig_tags(self, code):
 
 def transform_zig_export(self, code):
     def process_zig_block(match):
-        zig_code = match.group(1)
-        module_name = match.group(2)
-        base_indent = ""  # Base indentation level
+        base_indent = match.group(1)
+        zig_code = match.group(2)
+        module_name = match.group(3)
         
         # Добавляем export для C ABI
         exports = []
@@ -908,15 +1013,14 @@ def transform_zig_export(self, code):
         result = [
             f"# zig code start",
             f"{base_indent}#raw(start)",
-            f"{base_indent}zig_bridge = ZigBridge()",
-#            f"{base_indent}zig_bridge.compile_shared('''{modified_code}''', '{module_name}'\n)",
+            f"{base_indent}zig_bridge = ZigBridge(Core.currect_src_dir())",
             f"{base_indent}{module_name} = zig_bridge.load_functions('''{modified_code}''', '{module_name}')",
             f"{base_indent}#raw(end)",
         ]
 
         return '\n'.join(result)
 
-    return re.sub(r'#ZigModule\(([\s\S]*?)\)\s*->\s*(\w+)', process_zig_block, code)
+    return re.sub(r'([ \t]*)#ZigModule\(([\s\S]*?)\)\s*->\s*(\w+)', process_zig_block, code)
 
 def transform_doc_comments(self, code):
     def replace_doc(match):
