@@ -5,31 +5,34 @@ module import {
 
 trash_cleaner = true
 
-test = True
-test2 = {
-    'sas': 'asd',
-    'asd': 'asd'
-}
-test3 = [1, 2, 3]
 
-
-pack Animal::sas {
-    func test(sdf) !cache {
-        noop
+// Базовый класс для математических операций
+pack MathOps {
+    func square(x) {
+        return x * x
     }
 }
 
-pack Animal::Mammal !singleton {
-    pack Car::Vehicle {             
-        pack Person !dataclass {        
-            pack Book {
-                pass
-            }
-        }
-    }                  
+// Базовая функция для логирования
+func log_result(x) {
+    print(f"Result: {x}")
 }
-func test(x, y) !cached         
-func walk(steps)                
-func run !async                  
-func stop                        
 
+// Гиперфункция наследует класс MathOps и функцию log_result
+hyperfunc PowerCalculator :: MathOps|log_result {
+    func process(x) {
+        result = this.square(x)  // Используем метод из MathOps
+        log_result(result)       // Используем базовую функцию
+        return result
+    }
+}
+
+func Main {
+    calc = PowerCalculator()
+    
+    // Используем как функцию
+    result = calc(5)  // Выведет "Result: 25" и вернет 25
+    
+    // Используем как объект
+    print(calc.square(4))  // 16
+}

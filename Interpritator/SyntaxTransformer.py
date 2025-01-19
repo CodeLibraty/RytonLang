@@ -451,10 +451,27 @@ def protect_tables(self, code):
     return re.sub(r'table\s+(\w+)\s*=\s*\{([\s\S]*?)\}', pack_table, code)
 
 def OOP_Transformation(self, code):
+    # Гипер Функции
+    hyperfunc_patterns = [
+        r'hyperfunc\s+(\w+)\s*::\s*([\w\s\|]+)\s*' # hyperfunc name :: legacy|args
+    ]
+
+    for pattern in hyperfunc_patterns:
+        matches = re.finditer(pattern, code)
+        
+        for match in matches:
+            groups = match.groups()
+            legacy = match.group(2).replace('|', ',')
+            name = match.group(1)
+            if len(groups) == 2:
+                template = f"@hyperfunc({legacy})\nclass {name}"
+            
+            code = re.sub(re.escape(match.group(0)), template, code)
+
     # Классы: с/без наследования, с/без метамодификаторов
     class_patterns = [
-        r'pack\s+(\w+)\:\:(\w+)\s*!(\w+)',    # pack Name::Parent !mod
-        r'pack\s+(\w+)\:\:(\w+)',             # pack Name::Parent
+        r'pack\s+(\w+)\s+\:\:\s+(\w+)\s*!(\w+)',    # pack Name::Parent !mod
+        r'pack\s+(\w+)\s+\:\:\s+(\w+)',             # pack Name::Parent
         r'pack\s+(\w+)\s*!(\w+)',             # pack Name !mod
         r'pack\s+(\w+)\s*',                   # pack Name
     ]
@@ -473,6 +490,10 @@ def OOP_Transformation(self, code):
                 else:  # Только модификатор
                     name, mod = groups
                     template = f'@{mod}\nclass {name}'
+            else:  # Только имя
+                name = groups[0]
+                template = f'class {name}'
+
             code = re.sub(re.escape(match.group(0)), template, code)
 
     # Функции: с/без аргументов, с/без метамодификаторов
@@ -621,6 +642,22 @@ def transform_contracts(self, code):
 
     return re.sub(r'func\s+(\w+)\s*\((.*?)\)\s*:\s*(\w+)\s*\:\s*require\s+(.*?)\s*ensure\s+(.*?)\s*body\s*{\s*(.*?)\s*}', 
                 replace_contracts, code)
+
+def transform_hyperfunc(self, code: str) -> str:
+    # Паттерн для поиска объявления гиперфункции
+    pattern = r'hyperfunc\s+(\w+)\s*:\s*([\w\s|]+)\s*{([^}]*)}'
+    
+    def transform_match(match):
+        name = match.group(1)
+        bases = [b.strip() for b in match.group(2).split(',')]
+        body = match.group(3)
+        
+        # Формируем Python код
+        return f"""@hyperfunc({', '.join(bases)})
+class {name} {'{'}\n{body}{'}'}"""
+
+    # Заменяем все найденные гиперфункции
+    return re.sub(pattern, transform_match, code)
 
 def transform_match(self, code):
     def replace_match(match):
@@ -1034,7 +1071,7 @@ def transform_doc_comments(self, code):
         code,
         flags=re.MULTILINE
     )
-
+# !ZAMETKA! rework this function
 def transform_grouped_args(self, code):
     def replace_args(match):
         func_name = match.group(1)

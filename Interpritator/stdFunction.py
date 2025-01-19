@@ -33,6 +33,34 @@ def start_event(item1, item2, code):
     thread = threading.Thread(target=event(item1, item2, code))
     thread.start()
 
+
+def hyperfunc(*bases):
+    def decorator(cls):
+        # Собираем все базовые классы и функции
+        class_bases = tuple(base for base in bases if isinstance(base, type))
+        func_bases = tuple(base for base in bases if callable(base) and not isinstance(base, type))
+        
+        # Создаём новый класс с множественным наследованием
+        class HyperFunction(*class_bases):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._func_bases = func_bases
+            
+            def __call__(self, *args, **kwargs):
+                # Логика вызова как функции
+                result = self.process(*args, **kwargs)
+                return result
+                
+            def process(self, *args, **kwargs):
+                # Здесь можно использовать функции из func_bases
+                return cls.process(self, *args, **kwargs)
+                
+        return HyperFunction
+    try:
+        return decorator
+    except Exception as e:
+        print(e)
+
 # ClASSES
 class Contract:
     def __init__(self):

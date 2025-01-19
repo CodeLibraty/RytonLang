@@ -20,18 +20,16 @@ import io
 import os
 import gc
 
-# Необхадимые компоненты языка
+# Kомпоненты языка
 from .ErrorHandler import *
 
-from .Effects import *
-from .Pragma import *
+from .Effects import * # //  move to stdfunction  //
+from .Pragma import *  # //  and this  //
 
 from .Macro import *
 
 from .SyntaxAnalyzer import *
 from .SyntaxTransformer import *
-from .OOPIR import *
-from .DateIR import *
 
 from .MemoryManager import MemoryManager
 from .PackageSystem import PackageSystem
@@ -39,8 +37,8 @@ from .PackageSystem import PackageSystem
 # Предкомпиляция и кэширование регулярных выражений
 TRASH_CLEANER_RE  = re.compile(r'trash_cleaner\s*=\s*(true|false)')
 
-
-class SharpyLang:
+# //  ReWork Realisation for optimeze bytecode and for method syntax_transform  //
+class SharpyLang: # //   ReName class to RytonLang   //
     __slots__ = (
         'globals', 'effect_registry', 'pragma_handler',
         'error_handler', 'static_typing', 'syntax_analyzer',
@@ -273,7 +271,9 @@ class SharpyLang:
         code = transform_intercept(self, code)
 #        code = transform_chain(self, code)
 
+#        code = transform_hyperfunc(self, code)
         code = OOP_Transformation(self, code)
+        print(code)
         code = transform_reactive(self, code)
         code = transform_lambda(self, code)
         code = transform_special_operators(self, code)
