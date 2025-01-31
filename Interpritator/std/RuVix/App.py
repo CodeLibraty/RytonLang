@@ -1,9 +1,3 @@
-from kivy.app import App
-from kivy.uix.widget import Widget
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.image import Image
-from kivy.uix.button import Button
-from kivy.uix.textinput import TextInput
 from kivymd.app import MDApp
 from kivymd.uix.button import MDRaisedButton, MDFlatButton, MDIconButton
 from kivymd.uix.label import MDLabel
@@ -32,17 +26,149 @@ from kivymd.uix.pickers import MDDatePicker, MDTimePicker
 from kivymd.uix.filemanager import MDFileManager
 from kivymd.uix.banner import MDBanner
 from kivymd.uix.datatables import MDDataTable
-from kivy import core
-import importlib
-from functools import lru_cache
+
+from kivy.app import App
 from kivy.uix.widget import Widget
-import pygame
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.image import Image
+from kivy.uix.button import Button
+from kivy.uix.textinput import TextInput
+
+from kivy import core
 from kivy.graphics.texture import Texture
 from kivy.clock import Clock
 from kivy.graphics import Rectangle
 from kivy.graphics import Color, Rectangle, Canvas, Mesh
 from kivy.core.window import Window
+
+from functools import lru_cache
+
+import importlib
+import pygame
 import random
+
+class Window(MDFloatLayout):
+    """Базовое окно для наследования"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.title = "RytonApp"
+        self.size_hint = (1, 1)
+        self._widgets = {}
+        self._styles = {}
+        self._events = {}
+        self._animations = []
+
+    def add(self, widget, **kwargs):
+        """Создает и добавляет виджет в окно"""
+        widget_class = self.get_widget_class(widget)
+        widget = widget_class(**kwargs)
+        self._widgets[widget.name] = widget
+        self.add_widget(widget)
+        return widget
+
+    def set_style(self, name, style_dict):
+        """Применяет стили к компонентам"""
+        self._styles[name] = style_dict
+        if widget := self._widgets.get(name):
+            for key, value in style_dict.items():
+                setattr(widget, key, value)
+    
+    def add_component(self, name, widget, style=None):
+        """Добавляет компонент с опциональными стилями"""
+        self._widgets[name] = widget
+        if style:
+            self.set_style(name, style)
+        self.add_widget(widget)
+        
+    def on_event(self, event_name, callback):
+        """Подписка на события окна"""
+        if event_name not in self._events:
+            self._events[event_name] = []
+        self._events[event_name].append(callback)
+        
+    def emit_event(self, event_name, *args, **kwargs):
+        """Вызов обработчиков события"""
+        for callback in self._events.get(event_name, []):
+            callback(*args, **kwargs)
+            
+    def animate(self, widget_name, **properties):
+        """Анимация компонента"""
+        if widget := self._widgets.get(widget_name):
+            anim = Animation(**properties)
+            self._animations.append(anim)
+            anim.start(widget)
+
+class Game(Window):
+    """Окно для игр с поддержкой физики и эффектов"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.game_widget = RytonGameWidget()
+        self.add_component('game', self.game_widget)
+        self.fps = 60
+        self._running = False
+        self._entities = []
+        self._collision_handlers = {}
+        self.physics_enabled = True
+        
+    def add_entity(self, entity):
+        """Добавление игрового объекта"""
+        self._entities.append(entity)
+        
+    def on_collision(self, type1, type2, handler):
+        """Обработчик столкновений"""
+        self._collision_handlers[(type1, type2)] = handler
+        
+    def check_collisions(self):
+        """Проверка столкновений"""
+        for i, entity1 in enumerate(self._entities):
+            for entity2 in self._entities[i+1:]:
+                key = (type(entity1), type(entity2))
+                if handler := self._collision_handlers.get(key):
+                    if entity1.collides_with(entity2):
+                        handler(entity1, entity2)
+                        
+    def update(self, dt):
+        if self._running:
+            if self.physics_enabled:
+                self.check_collisions()
+            self.game_loop(dt)
+            for entity in self._entities:
+                entity.update(dt)
+
+class Dialog(MDDialog):
+    """Улучшенный диалог"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.auto_dismiss = True
+        self._callbacks = {}
+        self._data = {}
+        self._validators = {}
+        
+    def set_data(self, key, value):
+        """Сохранение данных диалога"""
+        self._data[key] = value
+        
+    def get_data(self, key):
+        """Получение данных диалога"""
+        return self._data.get(key)
+        
+    def add_validator(self, field, validator):
+        """Добавление валидатора для поля"""
+        self._validators[field] = validator
+        
+    def validate(self):
+        """Проверка всех полей"""
+        for field, validator in self._validators.items():
+            if not validator(self.get_data(field)):
+                return False
+        return True
+        
+    def on_button(self, text, callback):
+        """Обработчик кнопки с валидацией"""
+        def wrapper():
+            if self.validate():
+                callback()
+        self._callbacks[text] = wrapper
 
 class RytonGameWidget(Widget):
     def __init__(self, **kwargs):
@@ -94,9 +220,16 @@ class RytonMDApp(MDApp):
         super().__init__(**kwargs)
         self.ryton = ryton_instance
         self.widgets = {}
+        # Initialize theme
+        self.theme_cls.theme_style = "Light"
+        self.theme_cls.primary_palette = "Blue"
+        
+    def set_root(self, widget):
+        self.root = widget
 
     def build(self):
         return self.root
+
 
 class RuVix:
     def __init__(self, ryton_instance):
@@ -265,7 +398,6 @@ class RuVix:
             'Banner': MDBanner,
             'DataTable': MDDataTable,
         }
-#        return widget_classes[widget_type](**kwargs)
 
         if widget_type in widget_classes:
             return widget_classes[widget_type](**kwargs)

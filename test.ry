@@ -1,38 +1,109 @@
 
 module import {
-    std.RunTimer[timeit]
+    std.Files:fs
+    std.Path:path
+    std.System
+    std.Terminal[Terminal]
 }
 
 trash_cleaner = true
 
+pack PackageManager {
+    init {
+        this.term = Terminal()
+        this.project_root = path.pwd()
+        this.packages_dir = path.join(this.project_root, "packages")
+        this.create_structure()
+    }
 
-// Базовый класс для математических операций
-pack MathOps {
-    func square(x) {
-        return x * x
+    func create_structure {
+        if !fs.exists(this.packages_dir) {
+            fs.mkdir(this.packages_dir)
+            fs.mkdir(path.join(this.packages_dir, "python"))
+            fs.mkdir(path.join(this.packages_dir, "zig"))
+            fs.mkdir(path.join(this.packages_dir, "ryton"))
+        }
+    }
+
+    func install_python_package(name: str) {
+        target_dir = path.join(this.packages_dir, "python")
+        System.run(f"pip install --target={target_dir} {name}")
+        
+        // Создаем файл импорта
+        import_file = path.join(target_dir, f"{name}_import.ry")
+        fs.write(import_file, f"""
+        module import {{
+            pylib: {name}
+        }}
+        """)
+    }
+
+    func install_zig_package(repo_url: str) {
+        target_dir = path.join(this.packages_dir, "zig")
+        System.run(f"git clone {repo_url} {target_dir}")
+        
+        // Создаем файл импорта
+        name = repo_url.split('/')[-1].replace('.git', '')
+        import_file = path.join(target_dir, f"{name}_import.ry")
+        fs.write(import_file, f"""
+        #ZigModule(
+            const std = @import("std");
+            pub fn init() void {{
+                // Инициализация модуля
+            }}
+        ) -> {name}
+        """)
+    }
+
+    func install_ryton_package(name: str) {
+        target_dir = path.join(this.packages_dir, "ryton")
+        package_url = f"https://ryton-packages.org/{name}.ry"
+        
+        System.run(f"curl -o {target_dir}/{name}.ry {package_url}")
+        
+        // Создаем файл импорта
+        import_file = path.join(target_dir, f"{name}_import.ry")
+        fs.write(import_file, f"""
+        package import {{
+            {name}
+        }}
+        """)
+    }
+
+    func list_installed {
+        print("Installed packages:")
+        print("\nPython packages:")
+        for pkg in fs.list_dir(path.join(this.packages_dir, "python")):
+            print(f"  • {pkg}")
+            
+        print("\nZig packages:")
+        for pkg in fs.list_dir(path.join(this.packages_dir, "zig")):
+            print(f"  • {pkg}")
+            
+        print("\nRyton packages:")
+        for pkg in fs.list_dir(path.join(this.packages_dir, "ryton")):
+            print(f"  • {pkg}")
     }
 }
 
-// Базовая функция для логирования
-func log_result(x) {
-    print(f"Result: {x}")
-}
-
-// Гиперфункция наследует класс MathOps и функцию log_result
-hyperfunc PowerCalculator :: MathOps|log_result {
-    func process(x) {
-        result = this.square(x)  // Используем метод из MathOps
-        log_result(result)       // Используем базовую функцию
-        return result
-    }
-}
-
+// CLI интерфейс
 func Main {
-    calc = PowerCalculator()
+    pm = PackageManager()
     
-    // Используем как функцию
-    result = calc(5)  // Выведет "Result: 25" и вернет 25
-    
-    // Используем как объект
-    print(calc.square(4))  // 16
+    if System.args[1] == "install" {
+        type = System.args[2]
+        name = System.args[3]
+        
+        if type == "python" {
+            pm.install_python_package(name)
+        } elif type == "zig" {
+            pm.install_zig_package(name)
+        } elif type == "ryton" {
+            pm.install_ryton_package(name)
+        } else {
+            print("Unknown package type")
+        }
+    } elif System.args[1] == "list" {
+        pm.list_installed()
+    }
 }

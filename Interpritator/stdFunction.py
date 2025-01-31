@@ -4,9 +4,22 @@ import rich
 import threading
 from rich.table import Table as RichTable
 from rich.console import Console
-from typing import List, Dict, Any, Callable
+from functools import lru_cache
 from PackageSystem import PackageSystem
 from ErrorHandler import RytonError
+from typing import *
+import inspect
+import psutil
+
+String = str
+Int = int
+Float = float
+Bool = bool
+List = list
+Dict = dict
+Set = set
+Tuple = tuple
+Url = str
 
 # MODIFICATORS
 def readonly(cls):
@@ -32,7 +45,6 @@ def event(item1, item2, code):
 def start_event(item1, item2, code):
     thread = threading.Thread(target=event(item1, item2, code))
     thread.start()
-
 
 def hyperfunc(*bases):
     def decorator(cls):
@@ -60,6 +72,90 @@ def hyperfunc(*bases):
         return decorator
     except Exception as e:
         print(e)
+
+def typing(expected_type):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            type_map = {
+                "String": str,
+                "Int": int,
+                "Float": float,
+                "Bool": bool,
+                "List": list,
+                "Dict": dict
+            }
+            if not isinstance(result, type_map[expected_type]):
+                raise TypeError(f"Function {func.__name__} must return {expected_type}, got {type(result)}")
+            return result
+        return wrapper
+    return decorator
+
+def validate_params(func):
+    def wrapper(*args, **kwargs):
+        sig = inspect.signature(func)
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+        
+        for name, value in bound.arguments.items():
+            expected_type = func.__annotations__.get(name)
+            if expected_type:
+                actual_type = type(value)
+                if expected_type == String and not isinstance(value, str):
+                    raise TypeError(f"Argument '{name}' must be String, got {actual_type.__name__}")
+                elif expected_type == Int and not isinstance(value, int):
+                    raise TypeError(f"Argument '{name}' must be Int, got {actual_type.__name__}")
+                elif expected_type == Bool and not isinstance(value, bool):
+                    raise TypeError(f"Argument '{name}' must be Bool, got {actual_type.__name__}")
+                # и так далее для других типов
+        return func(*args, **kwargs)
+    return wrapper
+
+def logged(func: Callable) -> Callable:
+    def wrapper(*args, **kwargs):
+        print(f"[LOG] Calling {func.__name__}")
+        print(f"[LOG] Arguments: {args}, {kwargs}")
+        try:
+            result = func(*args, **kwargs)
+            print(f"[LOG] {func.__name__} returned: {result}")
+            return result
+        except Exception as e:
+            print(f"[LOG] {func.__name__} failed: {str(e)}")
+            raise
+    return wrapper
+
+def profile(func: Callable) -> Callable:
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        start_memory = psutil.Process().memory_info().rss
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        end_memory = psutil.Process().memory_info().rss
+        print(f"[PROFILE] {func.__name__}")
+        print(f"[PROFILE] Execution time: {end_time - start_time:.4f} seconds")
+        print(f"[PROFILE] Memory used: {(end_memory - start_memory) / 1024 / 1024:.2f} MB")
+        return result
+    return wrapper
+
+def metrics(func: Callable) -> Callable:
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        start_mem = psutil.Process().memory_info().rss
+        result = func(*args, **kwargs)
+        end = time.time()
+        end_mem = psutil.Process().memory_info().rss
+        
+        print(f"[METRICS] {func.__name__}")
+        print(f"[METRICS] Time: {end - start:.4f}s")
+        print(f"[METRICS] Memory: {(end_mem - start_mem) / 1024 / 1024:.2f}MB")
+        print(f"[METRICS] CPU: {psutil.cpu_percent()}%")
+        return result
+    return wrapper
+
+def cached(maxsize=128):
+    def decorator(func):
+        return lru_cache(maxsize=maxsize)(func)
+    return decorator
 
 # ClASSES
 class Contract:

@@ -1,4 +1,5 @@
 from functools import lru_cache
+import shutil
 
 class TerminalColors:
     RESET = '\033[0m'
@@ -25,6 +26,7 @@ class TerminalColors:
     BG_CYAN = '\033[46m'
     BG_WHITE = '\033[47m'
 
+"""покаристь весь текст в терминале """ 
 def set_all(color=None, bg_color=None, bold=False, underline=False):
     result = ""
     if bold:
@@ -38,12 +40,15 @@ def set_all(color=None, bg_color=None, bold=False, underline=False):
 
     print(result)
 
+""" сбросить цвет текста в терминале""" 
 def reset_color():
     print('\033[0m')
 
+""" покрасить текст""" 
 @lru_cache(maxsize=128)
-def colorize(text, color=None, bg_color=None, bold=False, underline=False):
-    result = ""
+def colorize(text, color=None, bg_color=None, bold=False, underline=False, fix_box=False):
+    result  = ""
+    fix_box_sym = ''
     if bold:
         result += TerminalColors.BOLD
     if underline:
@@ -52,6 +57,17 @@ def colorize(text, color=None, bg_color=None, bold=False, underline=False):
         result += getattr(TerminalColors, color.upper(), '')
     if bg_color:
         result += getattr(TerminalColors, f'BG_{bg_color.upper()}', '')
-    
-    result += text + TerminalColors.RESET
+    if fix_box == True:
+        if color:
+            pre_result = getattr(TerminalColors, color.upper(), '')
+        if bold:
+            pre_result += TerminalColors.BOLD
+        if underline:
+            pre_result += TerminalColors.UNDERLINE
+        if bg_color:
+            pre_result += getattr(TerminalColors, f'BG_{bg_color.upper()}', '')
+        size_term = shutil.get_terminal_size()
+        fix_box_sym += ' ' * (len(pre_result) + len(text) + len(size_term))
+
+    result += text + TerminalColors.RESET + fix_box_sym
     return result

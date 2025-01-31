@@ -2,8 +2,8 @@ import math
 import random
 from functools import lru_cache
 
-# 1. Сортировка пузырьком
 def bubble_sort(arr):
+    """ Сортировка пузырьком""" 
     n = len(arr)
     for i in range(n):
         for j in range(0, n - i - 1):
@@ -11,8 +11,8 @@ def bubble_sort(arr):
                 arr[j], arr[j + 1] = arr[j + 1], arr[j]
     return arr
 
-# 2. Быстрая сортировка
 def quick_sort(arr):
+    """ Быстрая сортировка""" 
     if len(arr) <= 1:
         return arr
     pivot = arr[len(arr) // 2]
@@ -21,7 +21,7 @@ def quick_sort(arr):
     right = [x for x in arr if x > pivot]
     return quick_sort(left) + middle + quick_sort(right)
 
-# 3. Бинарный поиск
+""" Бинарный поиск""" 
 @lru_cache(maxsize=128)
 def binary_search(arr, target):
     left, right = 0, len(arr) - 1
@@ -35,7 +35,7 @@ def binary_search(arr, target):
             right = mid - 1
     return -1
 
-# 4. Алгоритм Дейкстры (для графа, представленного списком смежности)
+""" Алгоритм Дейкстры (для графа, представленного списком смежности)""" 
 def dijkstra(graph, start):
     distances = {node: float('infinity') for node in graph}
     distances[start] = 0
@@ -52,7 +52,7 @@ def dijkstra(graph, start):
     
     return distances
 
-# 5. Решето Эратосфена
+""" Решето Эратосфена""" 
 @lru_cache(maxsize=128)
 def sieve_of_eratosthenes(n):
     primes = [True] * (n + 1)
@@ -63,7 +63,7 @@ def sieve_of_eratosthenes(n):
                 primes[j] = False
     return [i for i in range(n + 1) if primes[i]]
 
-# 6. Алгоритм Кнута-Морриса-Пратта (КМП)
+""" Алгоритм Кнута-Морриса-Пратта (КМП)""" 
 def kmp_search(text, pattern):
     def compute_lps(pattern):
         lps = [0] * len(pattern)
@@ -99,7 +99,7 @@ def kmp_search(text, pattern):
                 i += 1
     return results
 
-# 7. Алгоритм Флойда-Уоршелла
+""" Алгоритм Флойда-Уоршелла""" 
 def floyd_warshall(graph):
     dist = {(u, v): float('inf') if u != v else 0 for u in graph for v in graph}
     for u in graph:
@@ -111,7 +111,7 @@ def floyd_warshall(graph):
                 dist[i, j] = min(dist[i, j], dist[i, k] + dist[k, j])
     return dist
 
-# 8. Алгоритм Краскала
+""" Алгоритм Краскала""" 
 def kruskal(graph):
     def find(parent, i):
         if parent[i] == i:
@@ -144,7 +144,7 @@ def kruskal(graph):
 
     return mst
 
-# 9. Алгоритм Прима
+""" Алгоритм Прима""" 
 def prim(graph):
     start_vertex = next(iter(graph))
     mst = []
@@ -163,7 +163,7 @@ def prim(graph):
 
     return mst
 
-# 10. Поиск в глубину (DFS)
+""" Поиск в глубину (DFS)""" 
 def dfs(graph, start, visited=None):
     if visited is None:
         visited = set()
@@ -172,7 +172,7 @@ def dfs(graph, start, visited=None):
         dfs(graph, next, visited)
     return visited
 
-# 11. Поиск в ширину (BFS)
+""" Поиск в ширину (BFS)""" 
 from collections import deque
 
 def bfs(graph, start):
@@ -186,7 +186,7 @@ def bfs(graph, start):
                 queue.append(neighbour)
     return visited
 
-# 12. Алгоритм Кадане (максимальная подпоследовательность)
+""" Алгоритм Кадане (максимальная подпоследовательность)""" 
 def kadane(arr):
     max_current = max_global = arr[0]
     for i in range(1, len(arr)):
@@ -195,7 +195,7 @@ def kadane(arr):
             max_global = max_current
     return max_global
 
-# 13. Алгоритм Форда-Фалкерсона (максимальный поток)
+""" Алгоритм Форда-Фалкерсона (максимальный поток)""" 
 def ford_fulkerson(graph, source, sink):
     def bfs(graph, s, t, parent):
         visited = {s}
@@ -228,7 +228,7 @@ def ford_fulkerson(graph, source, sink):
             v = parent[v]
     return max_flow
 
-# 14. Алгоритм Хаффмана
+""" Алгоритм Хаффмана""" 
 import heapq
 from collections import defaultdict
 
@@ -248,7 +248,7 @@ def huffman_encoding(data):
         heapq.heappush(heap, [lo[0] + hi[0]] + lo[1:] + hi[1:])
     return sorted(heapq.heappop(heap)[1:], key=lambda p: (len(p[-1]), p))
 
-# 15. Алгоритм Ли (волновой алгоритм)
+""" Алгоритм Ли (волновой алгоритм)""" 
 def lee_algorithm(maze, start, end):
     queue = deque([[start]])
     seen = set([start])
@@ -262,7 +262,7 @@ def lee_algorithm(maze, start, end):
                 queue.append(path + [(x2, y2)])
                 seen.add((x2, y2))
 
-# 16. Алгоритм Косарайю (поиск сильно связанных компонент)
+""" Алгоритм Косарайю (поиск сильно связанных компонент)""" 
 def kosaraju(graph):
     def dfs(v, visited, stack):
         visited.add(v)
@@ -300,13 +300,13 @@ def kosaraju(graph):
 
     return components
 
-# 17. Алгоритм Евклида (НОД)
+""" Алгоритм Евклида (НОД)""" 
 def gcd(a, b):
     while b:
         a, b = b, a % b
     return a
 
-# 18. Решето Аткина
+""" Решето Аткина""" 
 def sieve_of_atkin(limit):
     sieve = [False] * (limit + 1)
     sieve[2], sieve[3] = True, True
@@ -334,7 +334,7 @@ def sieve_of_atkin(limit):
     
     return [x for x in range(2, limit + 1) if sieve[x]]
 
-# 19. Алгоритм Рабина-Карпа
+""" Алгоритм Рабина-Карпа""" 
 def rabin_karp(text, pattern):
     d = 256  # количество символов в алфавите
     q = 101  # простое число
@@ -359,7 +359,7 @@ def rabin_karp(text, pattern):
 
     return results
 
-# 20. Алгоритм Бойера-Мура
+""" Алгоритм Бойера-Мура""" 
 def boyer_moore(text, pattern):
     def build_bad_char_heuristic(pattern):
         bad_char = defaultdict(lambda: -1)
@@ -384,7 +384,7 @@ def boyer_moore(text, pattern):
 
     return results
 
-# 21. Алогоритм max
+""" Алогоритм max""" 
 @lru_cache(maxsize=128)
 def max(*args, key=None):
     if len(args) == 0:

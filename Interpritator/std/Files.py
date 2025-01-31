@@ -1,6 +1,7 @@
 import os
 import shutil
 import glob
+import json
 
 def list_dir(path="."):
     return os.listdir(path)
@@ -34,9 +35,20 @@ def read_file(path):
     with open(path, 'r') as f:
         return f.read()
 
+def exists(path):
+    return os.path.exists(path)
+
 def write_file(path, content):
     with open(path, 'w') as f:
         f.write(content)
+
+def write_json(path, data):
+    with open(path, 'w') as f:
+        json.dump(data, f)
+
+def read_json(path):
+    with open(path, 'r') as f:
+        return json.load(f)
 
 def append_to_file(path, content):
     with open(path, 'a') as f:
@@ -54,7 +66,7 @@ def set_file_perm(path, permissions):
 def is_file(path):
     return os.path.isfile(path)
 
-def is_directory(path):
+def is_dir(path):
     return os.path.isdir(path)
 
 def file_size(path):

@@ -224,7 +224,7 @@ class SharpyLang: # //   ReName class to RytonLang   //
 
         # Потом Уже проверяем синтаксис
         self.syntax_analyzer.code_init(code)
-        self.syntax_analyzer.analyze('pycode', code)
+        self.syntax_analyzer.analyze(code, code)
 
         # Обработка импортов библиотек
         code = protected_code
@@ -272,12 +272,12 @@ class SharpyLang: # //   ReName class to RytonLang   //
 #        code = transform_chain(self, code)
 
 #        code = transform_hyperfunc(self, code)
+        code = transform_user_self(self, code)
         code = OOP_Transformation(self, code)
-        print(code)
+        code = transform_meta_modifiers(self, code)
         code = transform_reactive(self, code)
         code = transform_lambda(self, code)
         code = transform_special_operators(self, code)
-        code = transform_user_self(self, code)
         code = transform_event(self, code)
         code = transform_guard(self, code)
         code = transform_defer(self, code)
@@ -287,6 +287,7 @@ class SharpyLang: # //   ReName class to RytonLang   //
         code = protect_tables(self, code)
         code = transform_metatable(self, code)
         code = transform_table(self, code)
+        code = transform_config_blocks(self, code)
 
         # Обычная обработка скобок
         lines = code.split('\n')
@@ -589,13 +590,10 @@ parallel = Parallel().parallel()'''
             try:
                 self.error_handler.start_tracing()
                 exec(self.compiled_cache[code_hash], globals_dict)
-            except SyntaxError as e:
+            except SyntaxError as error:
                 self.error_handler.stop_tracing()
                 self.error_handler.handle_error(error, code, transformed_code)
-            except traceback as e:
-                self.error_handler.stop_tracing()
-                self.error_handler.handle_error(error, code, transformed_code)
-            except Exception as e:
+            except Exception as error:
                 self.error_handler.stop_tracing()
                 self.error_handler.handle_error(error, code, transformed_code)
             finally:

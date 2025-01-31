@@ -1,3 +1,4 @@
+""" шифрование""" 
 def encrypt(data, key):
     # Шифрование
     data_bytes = data.encode()
@@ -8,6 +9,7 @@ def encrypt(data, key):
         encrypted_bytes.append(mixed_bytes[i] ^ key_bytes[i % len(key_bytes)])
     return encrypted_bytes.hex()
 
+""" дешифрование""" 
 def decrypt(encrypted_data, key):
     # Дешифрование
     encrypted_bytes = bytearray.fromhex(encrypted_data)
@@ -17,15 +19,3 @@ def decrypt(encrypted_data, key):
         decrypted_bytes.append(encrypted_bytes[i] ^ key_bytes[i % len(key_bytes)])
     decrypted_data = decrypted_bytes.decode()
     return decrypted_data
-
-# Тестирование
-data = """Hello, World!
-;dvosvno;s
-vldsvskmvsl<xlvj;o
-546973014-23=
-"""
-key = "key"
-encrypted_data = encrypt(data, key)
-print("Encrypted data:", encrypted_data)
-decrypted_data = decrypt(encrypted_data, key)
-print("Decrypted data:", decrypted_data)

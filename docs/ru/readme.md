@@ -76,13 +76,10 @@ source ryton_venv/bin/activate
 
 - **Примечание**: RytonLang не поддерживается на Windows оффициально. некотрые библиотеки могут работать некорректно или вообще не работать. Что вхудшем случае может привести к крашу Windows.
 Рекомендуем использовать WSL для Windows или полноценный Linux(Ubuntu, Manjaro, Arch, Alpine) для работы с RytonLang.
+- Поддержка Windows не планируется - по идеологическим соображениям.
 
 ## Примеры кода
-```
-module import {
-    std.UpIO
-}
-
+```ryton
 func Main {
     print('Hello World')
 }
@@ -90,7 +87,7 @@ func Main {
 *ещё примеры кода см. в* [examples.md](examples.md)
 
 Лицензия
-Copyright (c) 2025 CodeLibraty team. См. [LICENSE](LICENSE) для деталей.
+Copyright (c) 2025 CodeLibraty team. См. [LICENSE](LICENSE.ru) для деталей.
 
 Команда
 - RejziDich - Lead Developer

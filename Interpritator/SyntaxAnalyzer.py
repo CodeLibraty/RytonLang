@@ -20,6 +20,11 @@ class SyntaxAnalyzer:
             'blocks': re.compile(r'\b(if|while|for|match|guard)\s*\{'),
             'strings': re.compile(r'(".*?"|\'.*?\')')
         }
+
+        self.bad_syntax = [
+            "elif {",
+            "else {"
+        ]
         
         self.block_stack: List[Tuple[str, int]] = []
         self.scope_depth = 0
@@ -56,6 +61,11 @@ class SyntaxAnalyzer:
         self._check_forbidden_keywords(code)
         self._check_braces_balance(code)
         self._check_basic_patterns(code)
+
+    def _check_bad_syntax(self, code: str) -> None:
+        for keyword in self.bad_syntax:
+            if re.search(rf'\b{keyword}\b', code):
+                self._raise_error(f"BadSyntax:\n{keyword}")
 
     def _analyze_structure(self, code: str) -> None:
         """Анализ структуры кода"""
@@ -195,6 +205,7 @@ class SyntaxAnalyzer:
         line = self.current_line
         col = position - self.code.rfind('\n', 0, position) if position else None
         raise RytonSyntaxError(message, line, col, self.code.split('\n')[line-1])
+        os._exit(1)
 
     def check_syntax(self, code: str) -> None:
         """Сохраняем старый API"""

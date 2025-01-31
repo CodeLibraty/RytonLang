@@ -352,37 +352,54 @@ def transform_meta_modifiers(self, code):
     # Словарь соответствия модификаторов и декораторов
     META_MODIFIERS = {
         # Для классов (pack)
-        'slots': '@dataclasses.dataclass(slots=True)',
-        'frozen': '@dataclasses.dataclass(frozen=True)',
-        'final': '@final',
+        'slots':     '@dataclasses.dataclass(slots=True)',
+        'frozen':    '@dataclasses.dataclass(frozen=True)',
+        'final':     '@final',
         'singleton': '@singleton',
         'interface': '@abc.abstractmethod',
         'immutable': '@immutable',
         
         # Для функций (func)
-        'cached': '@lru_cache(maxsize=128)',
-        'async': '@asyncio.coroutine',
-        'pure': '@pure_function',
-        'deprecated': '@deprecated',
-        'profile': '@profile',
-        'validate': '@validate_args',
-        'timeout': '@timeout(seconds=5)',
-        'retry': '@retry(attempts=3)',
-        'trace': '@trace_calls'
+        'async':       '@asyncio.coroutine',
+        'pure':        '@pure_function',
+        'deprecated':  '@deprecated',
+        'timeout':     '@timeout(seconds=5)',
+        'retry':       '@retry(attempts=3)',
+        'trace':       '@trace_calls',
+        'validate':    'validate_params',
+        'cached':      'cached(maxsize=128)',
+        'profile':     'profile',
+        'logged':      'logged',
+        'metrics':     'metrics',
+        'retry':       'retry(attempts=3)',
+        'safe':        'safe_execution',
+        'transaction': 'transactional',
+        'limit':       'resource_limit',
+
+        # Для типизации функций
+        'String':  'typing("String")',
+        'Int':     'typing("Int")',
+        'Float':   'typing("Float")',
+        'Boolean': 'typing("Boolean")',
+        'List':    'typing("List")',
+        'Dict':    'typing("Dict")',
+        'Tuple':   'typing("Tuple")',
+        'Set':     'typing("Set")',
+        'Union':   'typing("Union")',
     }
     
     def replace_modifier(match):
-        name = match.group(1)
-        arg = match.group(2) or ''
-        modifier = match.group(3)
+        modifier = match.group(1)
         
         if modifier in META_MODIFIERS:
             modifer = META_MODIFIERS[modifier]
-            return f" {name}({arg}) !{modifer} {'{'}"
+            return f"@{modifer}\n"
             
         return match.group(0)
     
-    return re.sub(r' (\w+)(?:\((.*?)\))? !(\w+) \{', replace_modifier, code)
+    return re.sub(r'\@(.*?)\n', replace_modifier, code)
+
+
 
 @lru_cache(maxsize=128)
 def transform_pylib(self, code):
@@ -470,9 +487,9 @@ def OOP_Transformation(self, code):
 
     # Классы: с/без наследования, с/без метамодификаторов
     class_patterns = [
-        r'pack\s+(\w+)\s+\:\:\s+(\w+)\s*!(\w+)',    # pack Name::Parent !mod
+        r'pack\s+(\w+)\s+\:\:\s+(\w+)\s*!(.*?)\s* \{',    # pack Name::Parent !mod
         r'pack\s+(\w+)\s+\:\:\s+(\w+)',             # pack Name::Parent
-        r'pack\s+(\w+)\s*!(\w+)',             # pack Name !mod
+        r'pack\s+(\w+)\s*!(.*?)\s* \{',             # pack Name !mod
         r'pack\s+(\w+)\s*',                   # pack Name
     ]
     
@@ -482,14 +499,14 @@ def OOP_Transformation(self, code):
             groups = match.groups()
             if len(groups) == 3:  # С наследованием и модификатором
                 name, parent, mod = groups
-                template = f'@{mod}\nclass {name}({parent})'
+                template = f'@{mod}\nclass {name}({parent}) {'{'}'
             elif len(groups) == 2:
                 if '::' in match.group(0):  # Только наследование
                     name, parent = groups
                     template = f'class {name}({parent})'
                 else:  # Только модификатор
                     name, mod = groups
-                    template = f'@{mod}\nclass {name}'
+                    template = f'@{mod}\nclass {name} {'{'}'
             else:  # Только имя
                 name = groups[0]
                 template = f'class {name}'
@@ -498,10 +515,10 @@ def OOP_Transformation(self, code):
 
     # Функции: с/без аргументов, с/без метамодификаторов
     func_patterns = [
-        r'func\s+(\w+)\s*\(([^)]+)\)\s*!(\w+)\s*',  # func name(args) !mod:
-        r'func\s+(\w+)\s*\(([^)]+)\)\s*',           # func name(args):
-        r'func\s+(\w+)\s*!(\w+)\s*',                # func name !mod:
-        r'func\s+(\w+)\s*'                          # func name:
+        r'func\s+(\w+)\s*\((.*?)\)\s*!(.*?)\s* \{',  # func name(args) !mod:
+        r'func\s+(\w+)\s*\((.*?)\)\s* \{',           # func name(args):
+        r'func\s+(\w+)\s*!(.*?)\s* \{',                # func name !mod:
+        r'func\s+(\w+)\s* \{'                          # func name:
     ]
 
     for pattern in func_patterns:
@@ -510,21 +527,104 @@ def OOP_Transformation(self, code):
             groups = match.groups()
             if len(groups) == 3:  # С аргументами и модификатором
                 name, args, mod = groups
-                template = f'\n@{mod}\ndef {name}({args})'
+                mods = list(mod.split('|'))
+                modificators = ''
+                for mod in mods:
+                    modificators += f'@{mod}\n'
+                template = f'\n{modificators}def {name}({args}) {"{"}'
+
             elif len(groups) == 2:
                 if '(' in match.group(0):  # Только аргументы
                     name, args = groups
-                    template = f'\ndef {name}({args})'
+                    template = f'\ndef {name}({args}) {"{"}'
                 else:  # Только модификатор
                     name, mod = groups
-                    template = f'\n@{mod}\ndef {name}()'
-            else:  # Без аргументов и модификаторов
+                    mods = list(mod.split('|'))
+                    modificators = ''
+                    for mod in mods:
+                        modificators += f'@{mod}\n'
+                    template = f'\n{modificators}def {name}() {"{"}'
+            elif len(groups) == 1:  # Без аргументов и модификаторов
                 name = groups[0]
-                template = f'\ndef {name}()'
+                template = f'\ndef {name}() {"{"}'
             
             code = re.sub(re.escape(match.group(0)), template, code)
 
     return code
+
+def transform_config_blocks(self, code):
+    def parse_config_section(lines, indent=0):
+        result = {}
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if not line:
+                i += 1
+                continue
+                
+            if '{' in line and ':' not in line:
+                section_name = line.replace('{', '').strip()
+                section_content = []
+                brace_count = 1
+                i += 1
+                
+                while i < len(lines) and brace_count > 0:
+                    if '{' in lines[i]: brace_count += 1
+                    if '}' in lines[i]: brace_count -= 1
+                    if brace_count > 0:
+                        section_content.append(lines[i])
+                    i += 1
+                    
+                result[section_name] = parse_config_section(section_content)
+            elif ':' in line:
+                key, value = line.split(':', 1)
+                result[key.strip()] = value.strip().rstrip(',')
+            i += 1
+        return result
+
+    def format_dict(d, indent=1):
+        lines = ['{']
+        for key, value in d.items():
+            if isinstance(value, dict):
+                dict_str = format_dict(value, indent + 1)
+                lines.append(f"{'    ' * indent}'{key}': {dict_str},")
+            else:
+                lines.append(f"{'    ' * indent}'{key}': {value},")
+        lines.append('    ' * (indent-1) + '}')
+        return '\n'.join(lines)
+
+    def replace_config(match):
+        config_name = match.group(1)
+        config_body = match.group(2)
+        
+        # Парсим конфигурацию в словарь
+        config_dict = parse_config_section(config_body.split('\n'))
+        
+        # Форматируем MetaTable
+        config_str = format_dict(config_dict)
+        
+        return f"""#raw(start)
+_{config_name}_CONFIG = MetaTable({config_str})
+#raw(end)
+class {config_name} {'{'}
+    _instance = None
+    _config = _{config_name}_CONFIG
+    
+    @classmethod
+    def get(cls, key=None) {'{'}
+        if key {'{'}
+            return cls._config[key]
+        {'}'}
+        return cls._config
+    {'}'}
+        
+    @classmethod
+    def __getattr__(cls, key) {'{'}
+        return cls._config[key]
+    {'}'}
+{'}'}"""
+
+    return re.sub(r'config\s+(\w+)\s*\{([\s\S]*?)\}', replace_config, code)
 
 @lru_cache(maxsize=128)
 def transform_contracts_body(self, code):

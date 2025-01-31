@@ -14,7 +14,6 @@ partd==1.4.2
 protobuf==5.28.3
 psutil==6.1.0
 Pygments==2.18.0
-ray==2.39.0
 referencing==0.35.1
 requests==2.32.3
 rich==13.9.4
@@ -23,3 +22,4 @@ setuptools==75.6.0
 toolz==1.0.0
 urllib3==2.2.3
 jpype1
+cffi
