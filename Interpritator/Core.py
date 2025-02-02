@@ -1,4 +1,4 @@
-# Необхадимые питон модули для работы языка
+# Необхадимые модули для работы языка
 from importlib import import_module
 from functools import lru_cache
 from collections import deque
@@ -23,8 +23,8 @@ import gc
 # Kомпоненты языка
 from .ErrorHandler import *
 
-from .Effects import * # //  move to stdfunction  //
-from .Pragma import *  # //  and this  //
+from .Effects import * 
+from .Pragma import *  
 
 from .Macro import *
 
@@ -37,13 +37,20 @@ from .PackageSystem import PackageSystem
 # Предкомпиляция и кэширование регулярных выражений
 TRASH_CLEANER_RE  = re.compile(r'trash_cleaner\s*=\s*(true|false)')
 
-# //  ReWork Realisation for optimeze bytecode and for method syntax_transform  //
-class SharpyLang: # //   ReName class to RytonLang   //
+#                INFO:                #
+# Project   - Ryton Progarming Language
+# Version   - 0.1.0
+# team      - Code Libraty
+# Developer - RejziDich
+# License   - ROS License 1.0
+# SaFA      - Simple and Fast Architecture
+
+class SharpyLang:
     __slots__ = (
         'globals', 'effect_registry', 'pragma_handler',
         'error_handler', 'static_typing', 'syntax_analyzer',
         'compiled_functions', 'package_system', 'dsls',
-        'PACKAGE_IMPORT_RE', 'imported_libs', 'user_vars',
+        'imported_libs', 'user_vars', 
         'transformation_cache', 'IMPORT_RE', 'compiled_cache', 
         'memory_manager', 'trash_cleaner', 'module_mapping',
         'src_dir', 'compile_time_macros', 'tracer'
@@ -62,7 +69,6 @@ class SharpyLang: # //   ReName class to RytonLang   //
         self.trash_cleaner = True
 
         self.IMPORT_RE         = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
-        self.PACKAGE_IMPORT_RE = re.compile(r'package\s+import\s*\{([\s\S]*?)\}')
 
         self.src_dir = src_dir_project
 
@@ -82,7 +88,6 @@ class SharpyLang: # //   ReName class to RytonLang   //
             'std.RuVix.Effects':     'std.RuVix.Effects',
             'std.RuVix.App':         'std.RuVix.App,pygame',
 
-            'TrixD':           'TrixD',
             'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
             'std.UpIO':        'std.UpIO',         'std.Rask':        'std.Rask',
             'std.Math':        'std.Math',         'std.RandoMizer':  'std.RandoMizer',
@@ -106,20 +111,6 @@ class SharpyLang: # //   ReName class to RytonLang   //
 
     class ContractError(Exception):
         pass
-
-    def process_package_import(self, package_name, specific_imports=None):
-        try:
-            package_exports = self.package_system.load_package(package_name, self)
-            if specific_imports:
-                for item in specific_imports:
-                    if item in package_exports:
-                        self.globals[item] = package_exports[item]
-                    else:
-                        raise ImportError(f"'{item}' not found in package '{package_name}'")
-            else:
-                self.globals.update(package_exports)
-        except ImportError as e:
-            print(f"Import Error: {e}")
 
     @lru_cache(maxsize=128)
     def compile_to_bytecode(self, func_name, func_code):
@@ -229,7 +220,6 @@ class SharpyLang: # //   ReName class to RytonLang   //
         # Обработка импортов библиотек
         code = protected_code
         code = self.IMPORT_RE.sub(self.process_imports, code)
-        code = self.PACKAGE_IMPORT_RE.sub(self.process_package_imports, code)
 
         # Кэширование трансформаций
         code_hash = hash(code)
@@ -287,6 +277,7 @@ class SharpyLang: # //   ReName class to RytonLang   //
         code = protect_tables(self, code)
         code = transform_metatable(self, code)
         code = transform_table(self, code)
+        code = transform_package_import(self, code)
         code = transform_config_blocks(self, code)
 
         # Обычная обработка скобок
@@ -460,39 +451,6 @@ class SharpyLang: # //   ReName class to RytonLang   //
 
         return ''.join(python_imports)
 
-    def process_package_imports(self, match):
-        imports = match.group(1).split()
-        python_imports = ['system.path.insert(0, osystem.getcwd())\n']
-
-        for imp in imports:
-            imp = imp.strip()
-            if ':' in imp:
-                ryton_module, alias = imp.split(':', 1)
-                ryton_module = ryton_module.strip()
-                alias = alias.strip()
-            else:
-                ryton_module = imp
-                alias = None
-
-            module_parts = ryton_module.split('.')
-            module_path = '.'.join(module_parts[:-1])
-            import_name = module_parts[-1]
-
-            if '.' in module_path:
-                module, submodule = module_path.split('.', 1)
-                if alias:
-                    python_imports.append(f"from {module} import {submodule} as {alias}\n")
-                else:
-                    if import_name != submodule:
-                        python_imports.append(f"from {module_path} import {import_name}\n")
-            else:
-                if alias:
-                    python_imports.append(f"from {module_path} import {import_name} as {alias}\n")
-                else:
-                    python_imports.append(f"from {module_path} import {import_name}\n")
-
-        return ''.join(python_imports)
-
     def compile(self, code, output_file):
         # Трансформируем синтаксис
         transformed_code = self.transform_syntax(code)
@@ -550,6 +508,12 @@ parallel = Parallel().parallel()
             transformed_code = self.transform_syntax(code)
                 
             imports = '''
+import os as osystem
+import sys as system
+import time as timexc
+import threading
+from asyncio import *
+
 from functools import *
 from typing import *
 from stdFunction import *
@@ -559,13 +523,9 @@ from cffi import FFI
 from ZigLang.Bridge import ZigBridge
 import ctypes.util
 
-import os as osystem
-import sys as system
-import time as timexc
-import threading
-from asyncio import *
+parallel = Parallel().parallel()
 
-parallel = Parallel().parallel()'''
+'''
 
             call_main = '\nMain()'
 
@@ -585,6 +545,7 @@ parallel = Parallel().parallel()'''
             globals_dict = {
                 'gc': gc,
                 'Core': self,
+                'SRC': self.src_dir,
             }
 
             try:

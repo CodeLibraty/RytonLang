@@ -35,6 +35,25 @@ class ZigBridge:
             # Возвращаемся в исходную директорию
             os.chdir(current_dir)
 
+    def import_zig_module(self, module_name):
+        """Import Zig module from project directory"""
+        # Check for existing .so file
+        so_path = f"{self.export_path}/lib{module_name}.so"
+        
+        if os.path.exists(so_path):
+            return ctypes.CDLL(so_path)
+            
+        # If no .so exists, compile from .zig
+        module_path = os.path.join(self.export_path, f"{module_name}.zig")
+        if not os.path.exists(module_path):
+            raise ImportError(f"Zig module '{module_name}' not found at {module_path}")
+            
+        with open(module_path, 'r') as f:
+            zig_code = f.read()
+        
+        self.compile_shared(zig_code, module_name)
+        return ctypes.CDLL(so_path)
+
     def load_functions(self, zig_code, module_name):
         # Загружаем функции из скомпилированной библиотеки
         self.compile_shared(zig_code, module_name)

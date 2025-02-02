@@ -552,6 +552,29 @@ def OOP_Transformation(self, code):
 
     return code
 
+def transform_package_import(self, code):
+    pattern = r'package\s+import\s*{([^}]*)}'
+    
+    def process_imports(match):
+        imports = match.group(1).strip()
+        result = []
+        
+        for line in imports.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.startswith('ziglib:'):
+                pkg = line.split('ziglib:')[1].strip()
+                result.append(f'{pkg} = ZigBridge(Core.currect_src_dir() / "module" / "zig").import_zig_module(module_name="{pkg}")')
+            else:
+                # Default Ryton package import
+                result.append(f'{line} = Core.import_package("{line}")')
+                
+        return '\n'.join(result)
+    
+    return re.sub(pattern, process_imports, code)
+
 def transform_config_blocks(self, code):
     def parse_config_section(lines, indent=0):
         result = {}
@@ -669,10 +692,6 @@ def transform_import_modules(self, code):
         sub = match.group(2)
         sub_modules = match.group(3)
 
-        # Для .ry файлов
-        if os.path.exists(f"{module}.ry"):
-            return f"__import_package('{module}')"
-
         # Обработка множественных подмодулей
         sub_modules = re.sub(r'\|', ',', sub_modules)
         sub_modules = re.sub(r'/', '.', sub_modules)
@@ -789,7 +808,7 @@ def transform_match(self, code):
         result += "_pattern_match()"
         return result
 
-    return re.sub(r'match\s+(.+?)\s*\ :([\s\S]*?)', replace_match, code)
+    return re.sub(r'switch\s+(.+?)\s*\ :([\s\S]*?)', replace_match, code)
 
 def process_decorators(self, code: str) -> str:
     effects = re.findall(r'<effect\((.*?)\)>\n', code)

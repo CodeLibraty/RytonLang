@@ -52,13 +52,17 @@ This approach allows:
 just choose the necessary tools and you can write code! without unnecessary hassle, moms, dads and loans for a psychologist
 
 ## Quick start
-- build from sources
+- install latest version of Ryton
 ```bash
-git clone https://github.com/CodeLibraty/RytonLang.git
-cd RytonLang
-python3 -m venv ryton_venv
-source ryton_venv/bin/activate
-./build.sh
+# Ставим зависимости
+apt update
+apt install -y wget ccache git
+# Качаем deb пакет
+wget https://github.com/CodeLibraty/RytonLang/releases/latest/download/ryton_0.1-1.deb
+# Устанавливаем
+dpkg -i ryton_0.1-1.deb
+apt install -f -y
+echo "Ryton installed! Go!"
 ```
 After a successful build, you will get the executable file ryton_laucnher.bin at ./dist/ryton_launcher.dist/ryton_laucnher.bin.
 **Warning**: this file must be run from the dist/ryton_launcher.dist/ folder, otherwise it will not work (dependencies will not be found)

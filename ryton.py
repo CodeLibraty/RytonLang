@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 from Interpritator.Core import SharpyLang
 
 def setup_ryton_environment():
@@ -7,9 +8,12 @@ def setup_ryton_environment():
         base_path = os.path.dirname(sys.executable)
     else:
         base_path = os.path.dirname(__file__)
-        
+
+    base_path = str(Path.home()) + '/.local/lib/ryton/'
+
     os.environ['RYTON_HOME'] = base_path
     os.environ['RYTON_STDLIB'] = os.path.join(base_path, 'Interpritator/std')
+    os.environ['RYTON_STDFUNCTION'] = os.path.join(base_path, 'Interpritator/stdFunction.py')
     
     sys.path.insert(0, os.path.join(base_path, 'Interpritator'))
     sys.path.insert(0, os.path.join(base_path, 'Interpritator/std'))
