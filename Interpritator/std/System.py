@@ -9,6 +9,66 @@ import glob
 import stat
 import sys
 
+class Linux:
+    def __init__(self):
+        self.user = os.getenv('USER')
+        self.home = os.path.expanduser('~')
+        
+    def service(self, name):
+        return ServiceManager(name)
+        
+    def process(self, name=None, pid=None):
+        return ProcessManager(name, pid)
+        
+    def network(self):
+        return NetworkManager()
+        
+    def disk(self):
+        return DiskManager()
+
+class ServiceManager:
+    def start(self, service): 
+        return os.system(f"systemctl start {service}")
+        
+    def stop(self, service):
+        return os.system(f"systemctl stop {service}")
+        
+    def status(self, service):
+        return os.system(f"systemctl status {service}")
+
+class ProcessManager:
+    def kill(self, signal="SIGTERM"):
+        os.kill(self.pid, getattr(signal, signal))
+        
+    def priority(self, nice):
+        os.nice(nice)
+
+    def process_id():
+        return os.getpid()
+        
+    def children(self):
+        return psutil.Process(self.pid).children()
+
+class NetworkManager:
+    def interfaces(self):
+        return psutil.net_if_addrs()
+        
+    def connections(self):
+        return psutil.net_connections()
+        
+    def stats(self):
+        return psutil.net_io_counters()
+
+class DiskManager:
+    def mount(self, device, path):
+        os.system(f"mount {device} {path}")
+        
+    def unmount(self, path):
+        os.system(f"umount {path}")
+        
+    def usage(self):
+        return psutil.disk_usage('/')
+
 def os_info():
     return {
         "system":    platform.system(),
@@ -18,11 +78,8 @@ def os_info():
         "processor": platform.processor(),
     }
 
-def stop():
-    sys.exit(2)
-
 def exit():
-    sys.exit(1)
+    sys.exit(0)
 
 def environment_variable(name):
     return os.environ.get(name)
@@ -47,9 +104,6 @@ def create_symlink(src, dst):
 
 def symlink_target(path):
     return os.readlink(path)
-
-def process_id():
-    return os.getpid()
 
 def kill_process(pid):
     os.kill(pid, 9)

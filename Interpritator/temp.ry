@@ -1,0 +1,33 @@
+
+import os as osystem
+import sys as system
+import time as timexc
+import threading
+
+from asyncio import *
+from functools import *
+from typing import *
+
+from py4j.java_gateway import JavaGateway
+from cffi import FFI
+from ZigLang.Bridge import ZigBridge
+from std.MetaTable import MetaTable
+import ctypes.util
+
+from stdFunction import *
+from UpIO import *
+from DataTypes import *
+
+osystem.chdir("/home/rejzi/projects/CLI/RytonLang-PyPy")
+
+gateway = JavaGateway()
+parallel = Parallel().parallel()
+from std import lib
+from std.TUIX import *
+
+
+
+def Main() :
+    int = Version("1.10.1")
+    print(int)
+Main()

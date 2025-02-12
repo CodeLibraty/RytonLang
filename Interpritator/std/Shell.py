@@ -45,7 +45,7 @@ class Shell:
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
-                    env=env or self.env,
+                    env=self.env or env,
                     cwd=cwd
                 )
             else:
@@ -57,7 +57,7 @@ class Shell:
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
-                    env=env or self.env,
+                    env=self.env or env,
                     cwd=cwd
                 )
 
@@ -81,11 +81,11 @@ class Shell:
         try:
             if shell:
                 result = subprocess.run(cmd, shell=True, capture_output=capture, 
-                                     text=True, env=env or self.env, cwd=cwd)
+                                     text=True, env=self.env or env, cwd=cwd)
             else:
                 args = shlex.split(cmd)
                 result = subprocess.run(args, capture_output=capture,
-                                     text=True, env=env or self.env, cwd=cwd)
+                                     text=True, env=self.env or env, cwd=cwd)
             return result.stdout
         except Exception as e:
             return f"Error: {str(e)}"
@@ -152,21 +152,21 @@ class Shell:
 
     def which(self, cmd):
         """Поиск команды в PATH"""
-        return shutil.which(cmd, path=self.env.get('PATH'))
+        return shutil.which(cmd, path=env.get('PATH'))
 
     def setenv(self, key, value):
         """Установить переменную окружения"""
-        self.env[key] = value
+        env[key] = value
 
     def getenv(self, key, default=None):
         """Получить переменную окружения"""
-        return self.env.get(key, default)
+        return env.get(key, default)
 
     def cd(self, path):
         """Сменить директорию"""
         try:
             os.chdir(os.path.expanduser(path))
-            self.env['PWD'] = os.getcwd()
+            env['PWD'] = os.getcwd()
             return True
         except:
             return False

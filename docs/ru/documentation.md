@@ -1,337 +1,252 @@
-# RytonLang - Руководство пользователя
-
-# 1. Функции
-## Базовый синтаксис функций
-```ryton
-// Простая функция без параметров
+# Функции в Райтон
+## 1. Базовый синтаксис
+```
 func hello {
-    print("Hello, World!")
-}
-
-// Функция с параметрами
-func greet(str) {
-    print(f"Hello, {name}!")
-}
-
-// Функция с возвращаемым значением
-// не обязательно указывать тип возвращаемого значения или аргументов но лучше указывать
-func add(a: int, b: int) !int {
-    return a + b
-}
-
-// Однострочная функция
-func multiply(x: int, y: int) => x * y
-```
-
-## МетаМодификаторы функций
-```ryton
-// Кэширование результатов
-func heavy_calc(data: int) !cached {
-    // результаты будут кэшироваться
-}
-
-// Асинхронное выполнение
-func fetch_data(url: str) !async {
-    // асинхронная функция
-}
-
-// Несколько модификаторов
-func process_data(items: list) !cached|async {
-    // кэшируемая асинхронная функция
+    print("Hello!")
 }
 ```
 
-## Контракты функций
-```ryton
-func divide(a: int, b: int) -> float {
-    require b != 0
-    ensure result > 0
-    body {
-        return a / b
-    }
+- Ключевое слово `func` для объявления
+- Фигурные скобки вместо двоеточия
+- Не требуются скобки если нет параметров
+## 2. Параметры и типы
+```
+func greet(name: String, age: Int) {
+    print(f"Hello {name}, you are {age} years old!")
+}
+
+// строгая проверка типов
+func greet(name: String, age: Int) !String|validate {
+    return f"Hello {name}, you are {age} years old!"
 }
 ```
 
-# 2. Классы (pack)
-## Базовый синтаксис
-```ryton
-pack User {
-    name: str
-    age: int
-    
-    func greet {
-        print(f"Hello, {this.name}!")
-    }
+- Типизация через двоеточие
+- Проверка типов
+
+## 3. односторчные функции
+```
+func greet(name: String, age: Int) => f"Hello {name}, you are {age} years old!"
+```
+
+## 4. декораторы
+```
+<RunTimer.timeit>
+<Сache(128)>
+func heavy_calc(data: List) {
+    </
+      тяжелые вычисления,
+      выполнение котрых будет засекатся и
+      кешироватся определённым образом
+    />
 }
 ```
-## Наследование
-```ryton
+
+## 5. Модификаторы функций
+```
+func heavy_calc(data: List) cached|async|logged {
+    // тяжелые вычисления
+}
+```
+- `cached` - кэширование результатов
+- `async`  - асинхронное выполнение
+- `logged` - автоматически логирует функцию
+- Можно комбинировать через |
+
+## 6. Лямбды
+```
+func(x, y) => x + y
+func(x) => {
+    return x * 2
+}
+```
+- Короткий синтаксис со стрелкой
+- Однострочные и блочные версии
+
+# Классы в Райтон
+## 1. Базовое объявление
+```
 pack Animal {
-    species: str
+    slots {"name", "age"}
+    init {
+        this.name = "Unknown"
+        this.age = 0
+    }
 }
+```
 
+- Ключевое слово pack
+- slots для атрибутов
+- Конструктор через `init`
+## 2. Наследование
+```
 pack Dog :: Animal {
-    breed: str
-}
-```
-
-## Метамодификаторы классов
-```ryton
-// Неизменяемый класс
-pack Config !frozen {
-    host: str
-    port: int
-}
-
-// Класс с автоматическими слотами
-pack Performance !slots {
-    metrics: list
-}
-
-// Несколько модификаторов
-pack Cache !singleton|frozen {
-    data: dict
-}
-```
-
-## Структуры данных
-```ryton
-struct UserData {
-    name: str(min=2, max=50)
-    age: int(min=0, max=150)
-    email: str(pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-}
-```
-
-# 3. Обработка ошибок
-## Базовый синтаксис
-```ryton
-try {
-    risky_operation()
-} elerr {
-    handle_error()
-}
-```
-
-## Типизированная обработка ошибок
-```ryton
-try {
-    connect_to_database()
-} elerr ConnectionError {
-    retry_connection()
-} elerr TimeoutError {
-    show_timeout_message()
-} elerr {
-    // Обработка остальных ошибок
-}
-```
-
-## Однострочная обработка
-### полная обработка
-```ryton
-try { getData() } elerr DataError { return default_value }
-```
-### частичная обработка
-```ryton
-try { getData() }
-```
-
-# 4. Модули и пакеты
-## Импорт модулей
-```ryton
-module import {
-    std.lib:stdlib
-    std.Math[add|sub|mul|div|cossinus:cos]
-    std.Files:fs
-    std.Terminal[ascii|emoji|unicode]
-}
-```
-
-## Импорт пакетов
-```ryton
-package import {
-    MyPackage[MyPack] {
-        // Импорт нужных публичных элементов
+    init {
+        super()
+        this.breed = "Mixed"
+    }
+    
+    func bark {
+        print("Woof!")
     }
 }
 ```
 
-## Интеграция с другими языками
-```ryton
-// Python модули
-pylib: numpy
-pylib: pandas as pd
-
-// Java модули
-jvmlib: java.util as jutil
-
-// Zig интеграция
-#ZigModule(
-    fn calculate(x: i32) i32 {
-        return x * 2;
-    }
-) -> fast_math
-
-// всё это можно использовать в коде
+- `::` для наследования
+- super() для вызова родителя
+- Переопределение методов
+## 3. Модификаторы классов
+```
+pack User !slots|frozen {
+    name: 'Вася'
+    email: 'vasya@mail.com'
+}
 ```
 
-## Создание модуля
-```ryton
-pack MyModule {
-    // Публичные элементы
-    func public_method {
-        internal_helper()
-    }
-
-    // автоматический экспорт при импорте модуля
-    export func public_method {
-        internal_helper()
-    }
-
-    // Приватные элементы
-    private func internal_helper {
-        // Внутренняя логика
+- `@slots` - оптимизация памяти
+- `@frozen` - неизменяемый класс
+- `@singleton` - паттерн одиночка
+## 4. Приватность
+```
+pack Database {
+    private connection: 'Connection'
+    
+    private func connect {
+        # приватный метод
     }
 }
 ```
 
-# 5. События
-```ryton
-// событие когда пользователь залогинился
-// то есть занчение переменной UserLogin стало равно true
-event UserLogin -> True { 
-    validate_session()
-    update_status()
+- private для атрибутов
+- private для методов
+- Защита внутреннего состояния
+
+
+# Управляющие конструкции в Райтон
+## События:
+```
+event temperature -> high {
+    alert("Too hot!")
 }
-// проверяется это занчение каждые 0.1 секунды по умолчанию не заввисимо в отдельном потоке
+```
+- сомотрят на изменение переменной и выполняется код
+- запускаются в отдельном потоке
+## Циклы
+### Простой цикл:
+```
+for i in 1...10 {
+    print(i)
+}
 ```
 
-# 6. Циклы
-## Базовые циклы
-```ryton
-// Цикл for
-for item in items {
-    process(item)
-}
+- Диапазон через `...` включая конец
+- `..` для исключения конца
 
-// Цикл while
-while run == True {
-    print('running')
-}
-
-// Цикл until (работает пока условие ложно)
-until (counter > 10) {
-    counter += 1
-}
-
-// Бесконечный цикл с задержкой
-infinit 1.5 {  // задержка 1.5 секунды
+### Бесконечный цикл:
+```
+infinit 0.1 { // с задержкой 0.1 сек
     check_status()
 }
+```
 
-// Повторить 5 раз с задержкой 1 секунда
-repeat 5 1.0 {
+### Цикл с повторами:
+```
+repeat 5 0.5 { // 5 раз с задержкой 0.5 сек
     send_request()
 }
 ```
-## Диапазоны в циклах
-```
-// Диапазон включительно
-for i in 1..5 {  // 1,2,3,4,5
-    print(i)
-}
 
-// Диапазон исключительно
-for i in 1...5 {  // 1,2,3,4
-    print(i)
-}
+## Условия
+### Базовое условие:
 ```
-
-# 7. Условия
-## Базовые условия
-```ryton
-if user.age >= 18 {
-    allow_access()
-} elif user.age >= 13 {
-    request_parent_permission()
+if x > 0 {
+    print("Positive")
+} elif x < 0 {
+    print("Negative")
 } else {
-    deny_access()
+    print("Zero")
 }
 ```
-## Сопоставление с образцом
-```ryton
+
+### Switch выражение:
+```
 switch value {
-    case 1 {
-        print("One")
-    }
-    case 2 => print("Two")
-
-    else => print("Other")
-}
-```
-## Условные выражения
-```ryton
-// Тернарный оператор
-result = if value > 0 { "positive" } else { "negative" }
-
-// Условное присваивание
-config ?= load_default_config()  // Присваивает только если config == None
-```
-
-# 8. Типы данных
-## Базовые типы
-```ryton
-name: str = "John"
-age: int = 25
-active: bool = true
-price: float = 99.99
-// указывать типы необязательно
-```
-## Таблицы
-```ryton
-// в райтон нету обычных таблиц, есть только метатаблицы
-table UserSettings {
-    'theme': "dark"
-    'language': "en"
-    'notifications' := check_status()  // Вычисляемое поле
-}
-```
-## Массивы и коллекции
-```ryton
-// Массивы
-numbers = [1, 2, 3, 4, 5]
-names = ["Alice", "Bob", "Charlie"]
-
-// Вызов функции с массивом
-process[data, config, options]
-
-// Операции с массивами
-first = numbers[0]
-slice = numbers[1..3]
-```
-
-## 9. Специальные операторы
-```ryton
-// Оператор конвейера
-data |> process |> save
-
-// Оператор сравнения
-value <=> other  // возвращает -1, 0 или 1
-
-// Операторы композиции функций
-transform = filter >> map >> reduce
-```
-## 10. Декораторы
-```ryton
-<timeit>
-<Cache(max_size=100)>
-func expensive_operation {
-    // код
+    | 1 => print("One")
+    | 2 => print("Two")
+    | String(text) => print(f"Text: {text}")
+    
+    else => print("Default")
 }
 ```
 
-## 11. Директивы Транслятора
-```ryton
-static_typing = true // включить статический  анализ
-trash_cleaner = true // включить сборщик мусора
+## Обработка ошибок
+### Try-elerr блок:
+```
+try {
+    dangerous_operation()
+} elerr {
+    print("Error occurred")
+}
+```
+
+### С типом ошибки:
+```
+try {
+    connect_to_db()
+} elerr ConnectionError {
+    retry_connection()
+} elerr {
+    log_error()
+}
+```
+
+### Однострочный обработчик:
+```
+try { parse_data() } elerr ValueError { return None }
+```
+
+# Интеграции с другими языками
+## 1. Вызов Python из Ryton
+```
+pylib: mymodule
+
+mymodule.greet("John")
+```
+- Импорт модуля через `pylib`
+- Вызов функций через точку
+## 2. Использование Zig из Ryton
+### Импорт библиотеки:
+```
+ziglib: mylib
+mylib.add(2, 3)
+```
+- Импорт библиотеки через `ziglib`
+- Вызов функций через точку
+### Запуск на прямую:
+```
+#Zig(start)
+// код на Zig
+#Zig(end: result)
+```
+- Код Zig через метатеги `#Zig(start)` и `#Zig(end: result)`
+### Создание модуля на Zig прямо в Ryton:
+```
+#ZigModule(
+    // код на Zig
+) -> module
+
+module.func()
+```
+## 3. Импорт экосистемы JVM:
+```
+jvmlib: java.util.ArrayList as JArrayList
+
+list = JArrayList()
+list.add("Hello")
+```
+## 4. Импорт нативных библиотек:
+```
+nativelib: libmylib.so as MyLib
+
+MyLib.func()
 ```

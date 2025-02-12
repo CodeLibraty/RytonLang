@@ -1,10 +1,9 @@
-
 module import {
     std.lib
+    std.TUIX[*]
 }
 
-trash_cleaner = true
-
-func Main {
-    print("Hello world!")
+func Main() {
+    int = Version('1.10.1')
+    print(int)
 }

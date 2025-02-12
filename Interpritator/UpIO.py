@@ -1,8 +1,6 @@
 from typing import Any, Union, Callable
-import builtins
 import time
 import sys
-
 
 @staticmethod
 def sep(*values: Any, sep: str = " → ", end: str = "\n") -> None:
@@ -30,11 +28,6 @@ def write_stream(*values: Any, stream: str = "stdout", flush: bool = True) -> No
 def read_stream(size: int = -1, stream: str = "stdin") -> str:
     """Прямое чтение из потоков ввода"""
     return getattr(sys, stream).read(size)
-        
-@staticmethod
-def prompt_confirm(message: str) -> bool:
-    """Запрос подтверждения действия"""
-    return builtins.input(f"{message} (y/n): ").lower().startswith('y')
 
 @staticmethod
 def write_bytes(data: bytes, stream: str = "stdout") -> None:

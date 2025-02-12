@@ -8,18 +8,9 @@ from functools import lru_cache
 from PackageSystem import PackageSystem
 from ErrorHandler import RytonError
 from typing import *
+import threading
 import inspect
 import psutil
-
-String = str
-Int = int
-Float = float
-Bool = bool
-List = list
-Dict = dict
-Set = set
-Tuple = tuple
-Url = str
 
 # MODIFICATORS
 def readonly(cls):
@@ -33,7 +24,12 @@ def readonly(cls):
     cls.__setattr__ = __setattr__
     return cls
 
-# FUCTIONS
+def thread(code):
+
+    thread = threading.Thread(target=code, args=args, kwargs=kwargs)
+    thread.start()
+    return thread
+
 def event(item1, item2, code):
     while True:
         if item1 == item2:

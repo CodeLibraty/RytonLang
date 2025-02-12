@@ -3,6 +3,7 @@ from importlib import import_module
 from functools import lru_cache
 from collections import deque
 
+import subprocess
 import contextlib
 import threading
 import traceback
@@ -26,37 +27,37 @@ from .ErrorHandler import *
 from .Effects import * 
 from .Pragma import *  
 
-from .Macro import *
-
 from .SyntaxAnalyzer import *
 from .SyntaxTransformer import *
 
-from .MemoryManager import MemoryManager
+from .RGC import RytonGC
+
 from .PackageSystem import PackageSystem
+from .PythonImportManager import UserDirLoader
 
 # Предкомпиляция и кэширование регулярных выражений
 TRASH_CLEANER_RE  = re.compile(r'trash_cleaner\s*=\s*(true|false)')
 
-#                INFO:                #
-# Project   - Ryton Progarming Language
-# Version   - 0.1.0
-# team      - Code Libraty
-# Developer - RejziDich
-# License   - ROS License 1.0
-# SaFA      - Simple and Fast Architecture
+#                   INFO:                    #
+#  Project   - Ryton Progarming Language     #
+#  Version   - 0.1.0                         #
+#  team      - Code Libraty                  #
+#  Developer - RejziDich                     #
+#  License   - ROS License 1.0               #
+#  Arch      - Simple and Fast Architecture  #
 
 class SharpyLang:
     __slots__ = (
         'globals', 'effect_registry', 'pragma_handler',
         'error_handler', 'static_typing', 'syntax_analyzer',
         'compiled_functions', 'package_system', 'dsls',
-        'imported_libs', 'user_vars', 
+        'imported_libs', 'user_vars', 'gc', 'LangConfig',
         'transformation_cache', 'IMPORT_RE', 'compiled_cache', 
         'memory_manager', 'trash_cleaner', 'module_mapping',
-        'src_dir', 'compile_time_macros', 'tracer'
+        'src_dir', 'tracer', 'ryton_root', 'py_module_import'
     )
 
-    def __init__(self, src_dir_project):
+    def __init__(self, src_dir_project, ryton_root="./"):
         self.imported_libs = set()
         self.transformation_cache = {}
         self.compiled_functions   = {}
@@ -65,49 +66,66 @@ class SharpyLang:
         self.globals              = {}
         self.dsls                 = {}
 
-        self.static_typing = False
-        self.trash_cleaner = True
-
-        self.IMPORT_RE         = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
+        self.IMPORT_RE = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
 
         self.src_dir = src_dir_project
+        self.ryton_root = ryton_root
 
-        self.compile_time_macros = CompileTimeMacro()
-        self.error_handler   = RytonErrorHandler()
-        self.tracer          = ExecutionTracer()
-        self.effect_registry = EffectRegistry()
-        self.syntax_analyzer = SyntaxAnalyzer()
-        self.pragma_handler  = PragmaHandler()
-        self.package_system  = PackageSystem()
-        self.memory_manager  = MemoryManager()
+        self.LangConfig = {
+            'gc': {
+                'algorithm': "MarkSweep",
+                'heap_size': 16 * 1024 * 1024,  # 16MB
+                'threshold': 10000
+            }
+        }
+
+        self.py_module_import = UserDirLoader(ryton_root)
+        self.error_handler    = RytonErrorHandler()
+        self.tracer           = ExecutionTracer()
+        self.effect_registry  = EffectRegistry()
+        self.syntax_analyzer  = SyntaxAnalyzer()
+        self.pragma_handler   = PragmaHandler()
+        self.package_system   = PackageSystem()
+        self.gc               = RytonGC()
         self.module_mapping = {
-            'ZigLang': 'ZigLang',    'ZigLang.Bridge': 'ZigLang.Bridge',
+            'ZigLang': 'ZigLang',   'ZigLang.Bridge': 'ZigLang.Bridge',
+            'std.API': 'std.API',   'std.API.Linux':  'std.API.Linux',
             'std':   'std',
 
             'std.HyperConfigFormat': 'std.HyperConfigFormat',
             'std.RuVix.Effects':     'std.RuVix.Effects',
             'std.RuVix.App':         'std.RuVix.App,pygame',
+            'std.QuantUI':           'std.QuantUI',
+            'std.QuantUI.App':       'std.QuantUI.App',
+            'std.KeyBinder':         'std.KeyBinder',
+            'std.DeviceTools':       'std.DeviceTools',
 
             'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
+            'std.PowerAPI':    'std.PowerAPI',     'std.RuVix':       'std.RuVix',
             'std.UpIO':        'std.UpIO',         'std.Rask':        'std.Rask',
             'std.Math':        'std.Math',         'std.RandoMizer':  'std.RandoMizer',
             'std.RytonDB':     'std.RytonDB',      'std.Terminal':    'std.Terminal',
-            'std.JITCompiler': 'std.JITCompiler',  'std.RuVix':       'std.RuVix',
             'std.Path':        'std.Path',         'std.Files':       'std.Files',
-            'std.String':      'std.String',       'std.DateTime':    'std.DateTime',
+            'std.ReGex':       'std.ReGex',        'std.DateTime':    'std.DateTime',
             'std.Archive':     'std.Archive',      'std.DeBugger':    'std.DeBugger',
             'std.ErroRize':    'std.ErroRize',     'std.RuVixCore':   'std.RuvVixCore',
             'std.Algorithm':   'std.Algorithm',    'std.System':      'std.System',
             'std.DocTools':    'std.DocTools',     'std.MatplotUp':   'std.MatplotUp',
             'std.NeuralNet':   'std.NeuralNet',    'std.Media':       'std.Media',
-            'std.NetWorker':   'std.NetWorker',    'std.Tuix':        'std.Tuix',
+            'std.NetWorker':   'std.NetWorker',    'std.TUIX':        'std.TUIX',
             'std.MetaTable':   'std.MetaTable',    'std.ProgRessing': 'std.ProgRessing',
             'std.ColoRize':    'std.ColoRize',     'std.RunTimer':    'std.RunTimer',
         }
 
         # Настройки сборщика мусора
-        gc.enable()
-        gc.set_threshold(1000, 15, 10)
+        if self.LangConfig['gc']['algorithm']:
+            self.gc = RytonGC(
+                algorithm=self.LangConfig['gc']['algorithm'],
+                heap_size=self.LangConfig['gc']['heap_size'],
+                threshold=self.LangConfig['gc']['threshold']
+            )
+        else:
+            gc.enable()
 
     class ContractError(Exception):
         pass
@@ -178,44 +196,15 @@ class SharpyLang:
             return compiled_func
         return decorator
 
-    def protect_raw_blocks(self, code):
-        preserved_blocks = {}
-        counter = 0
-        
-        raw_pattern = r'#raw\(start\)(.*?)#raw\(end\)'
-        
-        matches = list(re.finditer(raw_pattern, code, re.DOTALL))
-        for match in matches:
-            key = f'RAWBLOCK_{counter}_ENDRAW'
-            content = match.group(1)
-            preserved_blocks[key] = content
-            start = match.start()
-            end = match.end()
-            code = code[:start] + key + code[end:]
-            counter += 1
-            
-        return code, preserved_blocks
-
-    def restore_language_blocks(self, code, preserved_blocks):
-        # Восстанавливаем сохраненные блоки
-        for key, block in preserved_blocks.items():
-            code = code.replace(key, block)
-        return code
-
     def currect_src_dir(self):
         return self.src_dir
 
     @lru_cache(maxsize=128)
     def transform_syntax(self, code):
-        # Следом Обработка меж-языковых тегов и импортов
-        code = transform_zig_tags(self, code)
-        code = transform_zig_export(self, code)
-        # Сохраняем блоки кода других языков
-        protected_code, raw_blocks = self.protect_raw_blocks(code)
-
+        protected_code, raw_blocks = transform_defer(code)
         # Потом Уже проверяем синтаксис
-        self.syntax_analyzer.code_init(code)
-        self.syntax_analyzer.analyze(code, code)
+#        self.syntax_analyzer.code_init(code)
+#        self.syntax_analyzer.analyze(code, code)
 
         # Обработка импортов библиотек
         code = protected_code
@@ -226,166 +215,20 @@ class SharpyLang:
         if code_hash in self.transformation_cache:
             return self.transformation_cache[code_hash]
 
-        # Обработка static_typing
-        match = re.search(r'static_typing\s*=\s*(true|false)', code)
-        if match:
-            self.static_typing = match.group(1) == 'true'
-            code = re.sub(r'static_typing\s*=\s*(true|false)', '', code)
-
-        # Обработка trash_cleaner
-        match = TRASH_CLEANER_RE.search(code)
-        if match:
-            self.trash_cleaner = match.group(1) == 'true'
-            code = TRASH_CLEANER_RE.sub('', code)
-
         # Замены синтаксиса
         replacements = {
             '} else {':  '}\nelse {',
             '} elerr ':  '}\nelerr ',
-            '} elif ':   '}\nelif ',
-            '} func':    '}\nfunc',
-
-            '\n})':   '})',
-            ', {\n':  ', {',
-            '({\n':   '({',
-            ': {\n':  ': {'
+            '} elif ':   '}\nelif '
         }
         for old, new in replacements.items():
             code = code.replace(old, new)
 
-        code = re.sub(r'\n\}\)', r'\}\)', code)
+        code = transform(code, raw_blocks)
 
-        code = transform_compile_time_macro(self, code)
-        code = transform_macro(self, code)
-        code = transform_state_machine(self, code)
-        code = transform_intercept(self, code)
-#        code = transform_chain(self, code)
 
-#        code = transform_hyperfunc(self, code)
-        code = transform_user_self(self, code)
-        code = OOP_Transformation(self, code)
-        code = transform_meta_modifiers(self, code)
-        code = transform_reactive(self, code)
-        code = transform_lambda(self, code)
-        code = transform_special_operators(self, code)
-        code = transform_event(self, code)
-        code = transform_guard(self, code)
-        code = transform_defer(self, code)
-        code = transform_dots_syntax(self, code)
-        code = transform_contracts_body(self, code)
-        code = transform_struct(self, code)
-        code = protect_tables(self, code)
-        code = transform_metatable(self, code)
-        code = transform_table(self, code)
-        code = transform_package_import(self, code)
-        code = transform_config_blocks(self, code)
-
-        # Обычная обработка скобок
-        lines = code.split('\n')
-        transformed_lines = []
-        indent_level = 0
-        for line in lines:
-            stripped = line.strip()
-            if stripped.endswith('{'):
-                transformed_lines.append('    ' * indent_level + stripped[:-1] + ':')
-                indent_level += 1
-            elif stripped.startswith('}'):
-                indent_level = max(0, indent_level - 1)
-            else:
-                transformed_lines.append('    ' * indent_level + stripped)
-
-        code = '\n'.join(transformed_lines)
-
-        replacements2 = {
-            'noop': 'pass',
-            '&':    'and',
-            '//':   '#',
-        }
-
-        for old, new in replacements2.items():
-            code = code.replace(old, new)
-
-        code = transform_decorators(self, code)
-
-        # Быстрая трансформация
-        code = re.sub(r'\buntil\s*\((.*?)\)\s* :', r'while not (\1):', code)
-        code = re.sub(r'\bforeach\s*(\w+)\s*in\s*(\w+)\s* :', r'for \1 in \2:', code)
-        code = re.sub(r'\bswitch\s*\((.*?)\)\s* :', r'match \1:', code)
-        code = re.sub(r'\bcase\s*(.*?) :', r'case \1:', code)
-        code = re.sub(r'use\s+(\w+)\s*\{([\s\S]*?)\}', use_dsl_replacement, code)
-        code = re.sub(r'create_dsl\s+(\w+)\s*\{([\s\S]*?)\}', create_dsl_replacement, code)
-
-        # Трансформация синтаксиса
-        code = transform_import_modules(self, code)
-        code = transform_grouped_args(self, code)
-        code = transform_doc_comments(self, code)
-        code = transform_contracts(self, code)
-        code = transform_debug_blocks(self, code)
-        code = transform_block_end(self, code)
-        code = process_decorators(self, code)
-        code = transform_clib(self, code)
-        code = transform_jvmlib(self, code)
-        code = transform_contracts(self, code)
-        code = transform_match(self, code)
-        code = transform_neural(self, code)
-        code = transform_with(self, code)
-        code = transform_data(self, code)
-        code = transform_prop(self, code)
-        code = transform_private(self, code)
-        code = transform_void(self, code)
-        code = transform_func_massive(self, code)
-        code = transform_lazy(self, code)
-        code = transform_match(self, code)
-        code = transform_programm_cleanup(self, code)
-        code = transform_run_lang(self, code)
-        code = transform_one_line_try_elerr(self, code)
-        code = transform_one_line_try(self, code)
-        code = transform_elerr(self, code)
-        code = transform_elerr2(self, code)
-        code = transform_elerr3(self, code)
-        code = transform_elerr4(self, code)
-        code = transform_pylib(self, code)
-        code = transform_protect(self, code)
-        code = transform_read(self, code)
-        code = transform_func_oneline(self, code)
-        code = transform_func3(self, code)
-        code = transform_func2(self, code)
-        code = transform_pack2(self, code)
-        code = transform_func(self, code)
-        code = transform_pack(self, code)
-        code = transform_slots(self, code)
-        code = transform_legasy_pack(self, code)
-        code = transform_info_programm(self, code)
-        code = transform_start_programm(self, code)
-        code = transform_init(self, code)
-        code = transform_infinit(self, code)
-        code = transform_repeat(self, code)
-        code = transform_default_assignment(self, code)
-        code = transform_range_syntax(self, code)
-        code = transform_comm_syntax(self, code)
-        code = transform_decorator_syntax(self, code)
-        code = transform_pipe_operator(self, code)
-        code = transform_spaceship_operator(self, code)
-        code = transform_function_composition(self, code)
-        code = transform_unpacking(self, code)
-        code = transform_elif(self, code)
-
-        # Теперь восстанавливаем raw блоки        
-        for key, content in raw_blocks.items():
-            code = code.replace(key, content)
-
-        self.transformation_cache[code_hash] = code
 
         return code
-
-    def check_types(self, func_name, args, annotations):
-        if not self.static_typing:
-            return
-        for arg_name, arg_value in args.items():
-            if arg_name in annotations:
-                expected_type = annotations[arg_name]
-                if not isinstance(arg_value, expected_type):
-                    raise RytonTypeError(f"Argument '{arg_name}' in function '{func_name}' expected {expected_type}, but got {type(arg_value)}")
 
     @staticmethod
     @lru_cache(maxsize=128)
@@ -464,6 +307,7 @@ from stdFunction import *
 from jpype import *
 from cffi import FFI
 from ZigLang.Bridge import ZigBridge
+from std.MetaTable import MetaTable
 import ctypes.util
 
 import os as osystem
@@ -473,6 +317,7 @@ import threading
 from asyncio import *
 
 parallel = Parallel().parallel()
+
 '''
         
         final_code = imports + transformed_code + '\nMain()'
@@ -507,24 +352,30 @@ parallel = Parallel().parallel()
             # Трансформируем синтаксис перед парсингом
             transformed_code = self.transform_syntax(code)
                 
-            imports = '''
+            imports = f'''
 import os as osystem
 import sys as system
 import time as timexc
 import threading
-from asyncio import *
 
+from asyncio import *
 from functools import *
 from typing import *
-from stdFunction import *
 
-from jpype import *
+from py4j.java_gateway import JavaGateway
 from cffi import FFI
 from ZigLang.Bridge import ZigBridge
+from std.MetaTable import MetaTable
 import ctypes.util
 
-parallel = Parallel().parallel()
+from stdFunction import *
+from UpIO import *
+from DataTypes import *
 
+osystem.chdir("{self.src_dir}")
+
+gateway = JavaGateway()
+parallel = Parallel().parallel()
 '''
 
             call_main = '\nMain()'
@@ -536,11 +387,6 @@ parallel = Parallel().parallel()
             for i, line in enumerate(lines, 1):
                 print(f"{i:3d} │ {line}")
 
-            # Кэширование скомпилированного кода
-            code_hash = hash(transformed_code)
-            if code_hash not in self.compiled_cache:
-                self.compiled_cache[code_hash] = compile(transformed_code, '<string>', 'exec')
-
             # Выполняем скомпилированный код
             globals_dict = {
                 'gc': gc,
@@ -548,9 +394,13 @@ parallel = Parallel().parallel()
                 'SRC': self.src_dir,
             }
 
+            # Сохраняем во временный файл
+            with open(f"{self.ryton_root}/Interpritator/temp.ry", "w") as f:
+                f.write(transformed_code)
+            
             try:
                 self.error_handler.start_tracing()
-                exec(self.compiled_cache[code_hash], globals_dict)
+                subprocess.run(["/home/rejzi/Downloads/pypy3.11-v7.3.18-linux64/bin/pypy3.11", f"{self.ryton_root}/Interpritator/temp.ry"])
             except SyntaxError as error:
                 self.error_handler.stop_tracing()
                 self.error_handler.handle_error(error, code, transformed_code)
@@ -562,49 +412,9 @@ parallel = Parallel().parallel()
 
             self.globals.update(globals_dict)
 
-            if self.static_typing:
-                # Добавляем проверку типов перед выполнением функции
-                original_func = namespace[func_name]
-                def type_checked_func(*args, **kwargs):
-                    bound_args = inspect.signature(original_func).bind(*args, **kwargs)
-                    self.check_types(func_name, bound_args.arguments, original_func.__annotations__)
-                    return original_func(*args, **kwargs)
-                namespace[func_name] = type_checked_func
-
-            # Автоматическая очистка памяти, если trash_cleaner == True
-            if self.trash_cleaner:
-                self.memory_manager.objects.clear()
-                gc.collect()
-
-            os._exit(0)
 
         except Exception as e:
             self.tracer.execution_log
             self.error_handler.stop_tracing()
             self.error_handler.handle_error(e, code, transformed_code)
             print(f'• This Error \033[36m\033[1m-perhaps-\033[0m of a bug in the language\n Please report it on GitHub :: \033[34m\033[4mhttps://github.com/CodeLibraty/RytonLang/issues\033[0m')
-            os._exit(1)
-
-if __name__ == '__main__':
-    RytonOne = SharpyLang()
-
-    test_code = '''
-module import {
-    std.lib
-}
-
-trash_cleaner = true
-
-jvmlib: java.util as jutil
-
-func main {
-    list = jutil.ArrayList()
-}
-
-main()
-    '''
-
-    try:
-        RytonOne.execute(test_code)
-    except Exception as e:
-        print(e)
