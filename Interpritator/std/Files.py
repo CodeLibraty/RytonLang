@@ -1,97 +1,70 @@
-import os
-import shutil
-import glob
-import json
+import ctypes
 
-def list_dir(path="."):
-    return os.listdir(path)
+# Загружаем нативную библиотеку
+_lib = ctypes.CDLL("./Interpritator/std/Files.so")
+_lib.listDir.restype = ctypes.c_int
 
-def create_dir(path):
-    os.makedirs(path, exist_ok=True)
+def write_file(path: str, content: str):
+    result = _lib.writeFile(str(path).encode(), content.encode())
+    return result == 0
 
-def remove_dir(path):
-    shutil.rmtree(path)
+def read_file(path: str) -> str:
+    buffer_size = 1024 * 1024  # 1MB buffer
+    buffer = ctypes.create_string_buffer(buffer_size)
+    bytes_read = _lib.readFile(str(path).encode(), buffer, buffer_size)
+    if bytes_read > 0:
+        return buffer.raw[:bytes_read].decode()
+    return ""
 
-def copy_file(src, dst):
-    shutil.copy2(src, dst)
+def list_dir(path: str = ".") -> list:
+    buffer_size = 4096
+    buffer = ctypes.create_string_buffer(buffer_size)
+    bytes_read = _lib.listDir(str(path).encode(), buffer, buffer_size)
+    
+    if bytes_read <= 0:
+        return []
+        
+    # Split buffer by null bytes to get file names
+    raw_data = buffer.raw[:bytes_read]
+    files = [name.decode() for name in raw_data.split(b'\0') if name]
+    return files
 
-def move_file(src, dst):
-    shutil.move(src, dst)
 
-def delete_file(path):
-    os.remove(path)
+def create_dir(path: str):
+    return _lib.createDir(path.encode())
 
-def file_info(path):
-    stat_info = os.stat(path)
+def remove_dir(path: str):
+    return _lib.removeDir(path.encode())
+
+def copy_file(src: str, dst: str):
+    return _lib.copyFile(src.encode(), dst.encode())
+
+def move_file(src: str, dst: str):
+    return _lib.moveFile(src.encode(), dst.encode())
+
+def delete_file(path: str):
+    return _lib.deleteFile(path.encode())
+
+def file_info(path: str) -> dict:
+    stat = _lib.fileInfo(path.encode())
     return {
-        "size": stat_info.st_size,
-        "created": time.ctime(stat_info.st_ctime),
-        "modified": time.ctime(stat_info.st_mtime),
-        "accessed": time.ctime(stat_info.st_atime),
-        "mode": stat.filemode(stat_info.st_mode),
+        "size": stat.size,
+        "modified": stat.mtime,
+        "accessed": stat.atime,
+        "created": stat.ctime
     }
 
-def read_file(path):
-    with open(path, 'r') as f:
-        return f.read()
+def exists(path: str) -> bool:
+    return bool(_lib.fileExists(path.encode()))
 
-def exists(path):
-    return os.path.exists(path)
+def append_to_file(path: str, content: str):
+    return _lib.appendFile(path.encode(), content.encode())
 
-def write_file(path, content):
-    with open(path, 'w') as f:
-        f.write(content)
+def set_file_perm(path: str, perms: int):
+    return _lib.setFilePerms(path.encode(), perms)
 
-def write_json(path, data):
-    with open(path, 'w') as f:
-        json.dump(data, f)
+def is_file(path: str) -> bool:
+    return bool(_lib.isFile(path.encode()))
 
-def read_json(path):
-    with open(path, 'r') as f:
-        return json.load(f)
-
-def append_to_file(path, content):
-    with open(path, 'a') as f:
-        f.write(content)
-
-def find_files(pattern):
-    return glob.glob(pattern)
-
-def file_perm(path):
-    return oct(os.stat(path).st_mode)[-3:]
-
-def set_file_perm(path, permissions):
-    os.chmod(path, int(str(permissions), 8))
-
-def is_file(path):
-    return os.path.isfile(path)
-
-def is_dir(path):
-    return os.path.isdir(path)
-
-def file_size(path):
-    return os.path.getsize(path)
-
-def absolute_path(path):
-    return os.path.abspath(path)
-
-def join_paths(*paths):
-    return os.path.join(*paths)
-
-def split_path(path):
-    return os.path.split(path)
-
-def file_exten(path):
-    return os.path.splitext(path)[1]
-
-def rename_file(old_name, new_name):
-    os.rename(old_name, new_name)
-
-def file_creation_time(path):
-    return os.path.getctime(path)
-
-def file_modification_time(path):
-    return os.path.getmtime(path)
-
-def file_access_time(path):
-    return os.path.getatime(path)
+def is_dir(path: str) -> bool:
+    return bool(_lib.isDir(path.encode()))

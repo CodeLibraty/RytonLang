@@ -1,9 +1,11 @@
 from typing import Any, Union, Callable
+import contextlib
 import builtins
 import termios
 import time
 import tty
 import sys
+import os
 import re
 
 emojis = {
@@ -517,3 +519,38 @@ def floating_list(items, title="Выберите", position="center"):
                 if next2 == 'B': current = min(len(items)-1, current+1)
         elif char == '\r':
             return items[current]
+
+@contextlib.contextmanager 
+def cursor_at(x, y):
+    """Move cursor to position"""
+    print(f"\033[{y};{x}H", end='')
+    try:
+        yield
+    finally:
+        print("\033[0m", end='')
+
+def split_screen():
+    """Добавляет разделитель посередине экрана"""
+    width = os.get_terminal_size().columns
+    height = os.get_terminal_size().lines
+    
+    # Вертикальная линия
+    separator = emojis['line_v']
+    mid = width // 2
+    
+    for i in range(height):
+        with cursor_at(mid, i):
+            print(separator)
+            
+    return mid
+
+def clear_side(side='left'):
+    """Очищает левую или правую часть экрана"""
+    width = os.get_terminal_size().columns
+    height = os.get_terminal_size().lines
+    mid = width // 2
+    
+    clear = ' ' * (mid - 1 if side == 'left' else mid)
+    for i in range(height):
+        with cursor_at(0 if side == 'left' else mid + 1, i):
+            print(clear)

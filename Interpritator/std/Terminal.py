@@ -261,15 +261,6 @@ class Terminal:
         print(f'└{horizontal}┘')
 
     @staticmethod
-    def create_menu(options: list, selected: int = 0) -> None:
-        """Создание интерактивного меню"""
-        for i, option in enumerate(options):
-            if i == selected:
-                print(f'\033[7m> {option}\033[0m')
-            else:
-                print(f'  {option}')
-
-    @staticmethod
     def set_buffer_size(columns: int, lines: int) -> None:
         """Установка размера буфера терминала"""
         if platform.system() == 'Windows':
@@ -398,7 +389,7 @@ class Terminal:
     def clear(self):
         """Очистка экрана"""
         self.console.clear()
-    
+
     def rule(self, title=None):
         """Горизонтальная линия с заголовком"""
         self.console.rule(title)

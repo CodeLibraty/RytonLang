@@ -38,13 +38,13 @@ from .PythonImportManager import UserDirLoader
 # Предкомпиляция и кэширование регулярных выражений
 TRASH_CLEANER_RE  = re.compile(r'trash_cleaner\s*=\s*(true|false)')
 
-#                   INFO:                    #
-#  Project   - Ryton Progarming Language     #
-#  Version   - 0.1.0                         #
-#  team      - Code Libraty                  #
-#  Developer - RejziDich                     #
-#  License   - ROS License 1.0               #
-#  Arch      - Simple and Fast Architecture  #
+#                  INFO:                  #
+#  Project   - Ryton Progarming Language  #
+#  Version   - 0.1.0                      #
+#  team      - Code Libraty               #
+#  Developer - RejziDich                  #
+#  License   - ROS License 1.0            #
+#  Arch      - Simple and Fast Approach   #
 
 class SharpyLang:
     __slots__ = (
@@ -58,13 +58,14 @@ class SharpyLang:
     )
 
     def __init__(self, src_dir_project, ryton_root="./"):
-        self.imported_libs = set()
         self.transformation_cache = {}
         self.compiled_functions   = {}
         self.compiled_cache       = {}
         self.user_vars            = {}
         self.globals              = {}
         self.dsls                 = {}
+
+        self.imported_libs = set()
 
         self.IMPORT_RE = re.compile(r'module\s+import\s*\{([\s\S]*?)\}')
 
@@ -83,13 +84,12 @@ class SharpyLang:
         self.error_handler    = RytonErrorHandler()
         self.tracer           = ExecutionTracer()
         self.effect_registry  = EffectRegistry()
-        self.syntax_analyzer  = SyntaxAnalyzer()
+        self.syntax_analyzer  = RytonSyntaxValidator()
         self.pragma_handler   = PragmaHandler()
         self.package_system   = PackageSystem()
         self.gc               = RytonGC()
         self.module_mapping = {
             'ZigLang': 'ZigLang',   'ZigLang.Bridge': 'ZigLang.Bridge',
-            'std.API': 'std.API',   'std.API.Linux':  'std.API.Linux',
             'std':   'std',
 
             'std.HyperConfigFormat': 'std.HyperConfigFormat',
@@ -202,9 +202,6 @@ class SharpyLang:
     @lru_cache(maxsize=128)
     def transform_syntax(self, code):
         protected_code, raw_blocks = transform_defer(code)
-        # Потом Уже проверяем синтаксис
-#        self.syntax_analyzer.code_init(code)
-#        self.syntax_analyzer.analyze(code, code)
 
         # Обработка импортов библиотек
         code = protected_code
@@ -225,8 +222,6 @@ class SharpyLang:
             code = code.replace(old, new)
 
         code = transform(code, raw_blocks)
-
-
 
         return code
 
@@ -349,9 +344,13 @@ parallel = Parallel().parallel()
 
     def run(self, code):
         try:
+            # Валидация синтаксиса
+            #if not self.syntax_analyzer.validate(code):
+            #    sys.exit(1)
+
             # Трансформируем синтаксис перед парсингом
             transformed_code = self.transform_syntax(code)
-                
+
             imports = f'''
 import os as osystem
 import sys as system

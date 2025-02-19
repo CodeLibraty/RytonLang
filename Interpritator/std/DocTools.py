@@ -6,34 +6,34 @@ import xml.etree.ElementTree as ET
 import pickle
 
 # 4. Чтение JSON файла
-def read_json_file(file_path):
+def read_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         return json.load(file)
 
 # 5. Запись в JSON файл
-def write_json_file(file_path, data):
+def write_json(file_path, data):
     with open(file_path, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
 
 # 6. Чтение CSV файла
-def read_csv_file(file_path):
+def read_csv(file_path):
     with open(file_path, 'r', newline='', encoding='utf-8') as file:
         reader = csv.reader(file)
         return list(reader)
 
 # 7. Запись в CSV файл
-def write_csv_file(file_path, data):
+def write_csv(file_path, data):
     with open(file_path, 'w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerows(data)
 
 # 8. Чтение XML файла
-def read_xml_file(file_path):
+def read_xml(file_path):
     tree = ET.parse(file_path)
     return tree.getroot()
 
 # 9. Запись в XML файл
-def write_xml_file(file_path, root):
+def write_xml(file_path, root):
     tree = ET.ElementTree(root)
     tree.write(file_path, encoding='utf-8', xml_declaration=True)
 

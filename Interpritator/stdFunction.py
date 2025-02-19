@@ -6,7 +6,8 @@ from rich.table import Table as RichTable
 from rich.console import Console
 from functools import lru_cache
 from PackageSystem import PackageSystem
-from ErrorHandler import RytonError
+from ErrorHandler import RytonTypeError
+from DataTypes import *
 from typing import *
 import threading
 import inspect
@@ -23,6 +24,15 @@ def readonly(cls):
         
     cls.__setattr__ = __setattr__
     return cls
+
+def elerr(func):
+    def wrapper(*args, **kwargs):
+        try:
+            result = func(*args, **kwargs)
+            return result
+        except Exception as e:
+            print(f"Error in function {func.__name__}: {type(e).__name__}: {str(e)}")
+    return wrapper
 
 def thread(code):
 
@@ -74,16 +84,77 @@ def typing(expected_type):
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
             type_map = {
+                "None": None,
                 "String": str,
                 "Int": int,
                 "Float": float,
                 "Bool": bool,
                 "List": list,
-                "Dict": dict
+                "Dict": dict,
+                "Set": set,
+                "Tuple": tuple,
+                "Money": Money,
+                "Time": Time,
+                "Range": Range,
+                "Version": Version,
+                "Color": Color,
+                "URL": URL,
+                "Path": Path,
+                "BigInt": BigInt,
+                "Decimal": Decimal,
+                "Vector": Vector,
+                "Matrix": Matrix,
+                "Email": Email,
+                "PhoneNumber": PhoneNumber,
+                "UUID": UUID,
+                "IPAddress": IPAddress,
+                "Temperature": Temperature,
+                "GeoPoint": GeoPoint
             }
+            
             if not isinstance(result, type_map[expected_type]):
                 raise TypeError(f"Function {func.__name__} must return {expected_type}, got {type(result)}")
             return result
+        return wrapper
+    return decorator
+
+def limit_calls(max_calls):
+    def decorator(func):
+        func._call_count = 0
+        def wrapper(*args, **kwargs):
+            if func._call_count >= max_calls:
+                raise RuntimeError(f"Function {func.__name__} exceeded maximum calls of {max_calls}")
+            func._call_count += 1
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+def timeout(seconds):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            import signal
+            def handler(signum, frame):
+                raise TimeoutError(f"Function {func.__name__} timed out after {seconds} seconds")
+            signal.signal(signal.SIGALRM, handler)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+        return wrapper
+    return decorator
+
+def retry(attempts=3, delay=1):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(attempts):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == attempts - 1:
+                        raise e
+                    time.sleep(delay)
         return wrapper
     return decorator
 
@@ -93,19 +164,58 @@ def validate_params(func):
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
         
+        type_validators = {
+            String: str,
+            Int: int,
+            Bool: bool,
+            Float: float,
+            List: list,
+            Dict: dict,
+            Set: set,
+            Tuple: tuple,
+            Money: Money,
+            Time: Time,
+            Range: Range,
+            Version: Version,
+            Color: Color,
+            URL: URL,
+            Path: Path,
+            BigInt: BigInt,
+            Decimal: Decimal,
+            Vector: Vector,
+            Matrix: Matrix,
+            Email: Email,
+            PhoneNumber: PhoneNumber,
+            UUID: UUID,
+            IPAddress: IPAddress,
+            Temperature: Temperature,
+            GeoPoint: GeoPoint
+        }
+
         for name, value in bound.arguments.items():
             expected_type = func.__annotations__.get(name)
-            if expected_type:
-                actual_type = type(value)
-                if expected_type == String and not isinstance(value, str):
-                    raise TypeError(f"Argument '{name}' must be String, got {actual_type.__name__}")
-                elif expected_type == Int and not isinstance(value, int):
-                    raise TypeError(f"Argument '{name}' must be Int, got {actual_type.__name__}")
-                elif expected_type == Bool and not isinstance(value, bool):
-                    raise TypeError(f"Argument '{name}' must be Bool, got {actual_type.__name__}")
-                # и так далее для других типов
+            if expected_type in type_validators:
+                validator = type_validators[expected_type]
+                if not isinstance(value, validator):
+                    raise TypeError(f"Argument '{name}' must be {expected_type.__name__}, got {type(value).__name__}")
+                
+                # Специальные проверки для некоторых типов
+                if expected_type == Email:
+                    if '@' not in value.address:
+                        raise ValueError(f"Invalid email format for argument '{name}'")
+                elif expected_type == IPAddress:
+                    if len(value.octets) != 4:
+                        raise ValueError(f"Invalid IP address format for argument '{name}'")
+                elif expected_type == Money:
+                    if value.amount < 0:
+                        raise ValueError(f"Money amount cannot be negative for argument '{name}'")
+                elif expected_type == Temperature:
+                    if value.celsius < -273.15:
+                        raise ValueError(f"Temperature cannot be below absolute zero for argument '{name}'")
+                        
         return func(*args, **kwargs)
     return wrapper
+
 
 def logged(func: Callable) -> Callable:
     def wrapper(*args, **kwargs):

@@ -10,7 +10,7 @@ def setup_ryton_environment():
     else:
         base_path = os.path.dirname(__file__)
 
-    base_path = './' #str(Path.home()) + '/.local/lib/ryton/'
+    #base_path = './' #str(Path.home()) + '/.local/lib/ryton/'
 
     os.environ['RYTON_HOME'] = base_path
     os.environ['RYTON_STDLIB'] = os.path.join(base_path, 'Interpritator/std')

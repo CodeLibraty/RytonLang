@@ -11,6 +11,7 @@ Dict = dict
 Set = set
 Tuple = tuple
 
+# Custom Types
 class Money:
     def __init__(self, amount, currency='USD'):
         self.amount = float(amount)
@@ -99,7 +100,7 @@ class URL:
 class Path:
     def __init__(self, path_string):
         self.parts = path_string.replace('\\', '/').replace('~', f'{os.path.expanduser("~")}').strip('/').split('/')
-        
+
     def __truediv__(self, other):
         if isinstance(other, str):
             return Path('/'.join(self.parts + [other]))
@@ -215,24 +216,3 @@ class GeoPoint:
         a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
         c = 2 * atan2(sqrt(a), sqrt(1-a))
         return R * c
-
-def export():
-    return {
-        'Money': Money,
-        'Time': Time,
-        'Range': Range,
-        'Version': Version,
-        'Color': Color,
-        'URL': URL,
-        'Path': Path,
-        'BigInt': BigInt,
-        'Decimal': Decimal,
-        'Vector': Vector,
-        'Matrix': Matrix,
-        'Email': Email,
-        'PhoneNumber': PhoneNumber,
-        'UUID': UUID,
-        'IPAddress': IPAddress,
-        'Temperature': Temperature,
-        'GeoPoint': GeoPoint
-    }

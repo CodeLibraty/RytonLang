@@ -59,6 +59,7 @@ class ClassTransformer:
     def transform_user_self(self, code):
         # Ищем все классы
         matches = list(re.finditer(r'pack\s+(\w+)\s*{', code))
+        matches += list(re.finditer(r'pack\s+(\w+)\s*::\s*(\w+)\s*{', code))
         
         # Идем с конца, чтобы не сбить позиции при замене
         for match in reversed(matches):
@@ -411,7 +412,6 @@ class FunctionTransformer:
         code = re.sub(r'(\w+)\[(.*?)\]', r'\1(*[\2])', code)
         return code
 
-
     def transform_meta_modifiers(self, code):
         # Словарь соответствия модификаторов и декораторов
         META_MODIFIERS = {
@@ -450,6 +450,24 @@ class FunctionTransformer:
             'Tuple':   'typing("Tuple")',
             'Set':     'typing("Set")',
             'Union':   'typing("Union")',
+            'URL':     'typing("URL")',
+            'Email':   'typing("Email")',
+            'Phone':   'typing("Phone")',
+            'Time':    'typing("Time")',
+            'Range':   'typing("Range")',
+            'Version': 'typing("Version")',
+            'Color':   'typing("Color")',
+            'Money':   'typing("Money")',
+            'UUID':    'typing("UUID")',
+
+            'IPAddress':   'typing("IPAddress")',
+            'GeoPoint':    'typing("GeoPoint")',
+            'Temperature': 'typing("Temperature")',
+            'BigInt':      'typing("BigInt")',
+            'Decimal':     'typing("Decimal")',
+            'Vector':      'typing("Vector")',
+            'Matrix':      'typing("Matrix")',
+            'Path':        'typing("Path")',
         }
         
         def replace_modifier(match):
@@ -998,17 +1016,35 @@ class Comments:
         def replace_doc(match):
             indent = match.group(1)
             content = match.group(2)
-            return f'{indent}"""\n{indent}{content}\n{indent}"""'
+            
+            # Парсим специальные маркеры
+            doc_parts = []
+            current_section = None
+            section_content = []
+            
+            for line in content.split('\n'):
+                if line.strip().endswith('#'):  # Однострочный маркер
+                    marker, text = line.split('#', 1)
+                    doc_parts.append(f":param {marker.lower()}: {text}")
+                elif line.strip().endswith('#> '):  # Многострочный маркер
+                    if current_section:
+                        doc_parts.append('\n'.join(section_content))
+                    current_section = line.strip()[:-1]
+                    section_content = []
+                elif current_section:
+                    section_content.append(f"{indent}    {line.strip()}")
+                    
+            if section_content:
+                doc_parts.append('\n'.join(section_content))
+                
+            return f'{indent}"""\n{indent}{"\n".join(doc_parts)}\n{indent}"""'
 
-        return re.sub(
-            r'^([ \t]*?)/!/\s*([\s\S]*?)/!/',
-            replace_doc,
-            code,
-            flags=re.MULTILINE
-        )
+        return re.sub(r'^([ \t]*?)/!/\s*([\s\S]*?)/!/', '', code, flags=re.MULTILINE)
 
     def transform_comm_syntax(self, code):
-        return re.sub(r'</\s*(.*?)\s*/>', r'', code, flags=re.DOTALL)
+        code = re.sub(r'</\s*(.*?)\s*/>', r'', code, flags=re.DOTALL)
+        code = re.sub(r'//\s*(.*?)\s*', r'#', code, flags=re.DOTALL)
+        return code
 
 
 comments = Comments()
@@ -1057,6 +1093,7 @@ def transform_defer(code):
 def transform(code, raw_blocks):
     # Вызываем методы из классов
 
+    #code = comments.transform_doc_comments(code)
     code = Function.transform_macro(code)
     code = Class.transform_user_self(code)
     code = Class.OOP_Transformation(code)
@@ -1091,7 +1128,6 @@ def transform(code, raw_blocks):
     replacements2 = {
         'noop': 'pass',
         '&':    'and',
-        '//':   '#',
     }
 
     for old, new in replacements2.items():
@@ -1105,7 +1141,6 @@ def transform(code, raw_blocks):
     #code = data.transform_table(code)
     code = module.transform_import_modules(code)
     code = Function.transform_grouped_args(code)
-    code = comments.transform_doc_comments(code)
     code = Function.transform_contracts(code)
     code = controlflow.transform_debug_blocks(code)
     code = controlflow.transform_block_end(code)

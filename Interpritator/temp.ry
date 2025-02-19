@@ -22,12 +22,112 @@ osystem.chdir("/home/rejzi/projects/CLI/RytonLang-PyPy")
 
 gateway = JavaGateway()
 parallel = Parallel().parallel()
-from std import lib
 from std.TUIX import *
+from std.Terminal import Terminal
+from std.System import exit
+from std.Files import create_dir as mkdir, list_dir as ls, delete_file as rmfile, write_file as mkfile
+from std.DeBugger import debug
+from std.lib import clear
 
 
+class MainWin:
+    def __init__(self):
+        
+        MainWin.home = Path("~")
+        MainWin.Dir  = f"{MainWin.home}/Zametki"
+    
+    
+    def createZametka(MainWin) :
+        try :
+            title = input("Enter the title of the note: ")
+            data = input("Enter the content of the note: ")
+            clear("Unix")
+            path = mkfile(f"/home/rejzi/Zametki/sas", data)
+            print(f"<green><success> <bold>Success! save to {path}</bold></green>")
+            input("enter to return")
+        except Exception as e:
+            print(f"<red><warning> <bold>Error:</bold></red> {e}")
+            input("enter to return")
+    
+    
+    def readZametka(MainWin) :
+        try :
+            title = input("Enter the title of the note: ")
+            data = read_json(MainWin.Dir + "/" + title)
+            print(data)
+            input("enter to return")
+        except Exception as e:
+            print(f"<red><warning> <bold>Error:</bold></red> {e}")
+            input("enter to return")
+    
+    
+    @validate_params
+    def deleteZametka(MainWin, title: String) :
+        try :
+            rmfile(MainWin.Dir + title)
+            print("<green><success> <bold>Success</bold></green>")
+            input("enter to return")
+        except Exception as e:
+            print(f"<red><warning> <bold>Error:</bold></red> {e}")
+            input("enter to return")
+    
+    
+    def lsZametka(MainWin) :
+        try :
+            files = ls("/home/rejzi/Zametki")
+            if files == [] or None :
+                
+                files = ["Nothing"]
+            print(floating_list(items=files, title="enter for return"))
+        except Exception as e:
+            print(f"<red><warning> <bold>Error:</bold></red> {e}")
+            input("enter to return")
+    
+    
+    def Main(MainWin) :
+        
+        term = Terminal()
+        width = term.get_size().columns
+        
+        active_panel = "left"
+        current_view = None
+        show_hint = False
+        
+        term.set_title("Zametker")
+        term.rule("Zametker")
+        
+        term.clear()
+        
+        while True: 
+            timexc.sleep(0.1)
+            
+            choice = menu("choose an option", [
+            (
+            "Create Zametka",
+            lambda : MainWin.createZametka(MainWin),
+            "Crate a new note / key: c"
+            ),
+            (
+            "Read Zametka",
+            lambda : MainWin.readZametka(MainWin),
+            "Read a note / key: r"
+            ),
+            (
+            "Delete Zametka",
+            lambda : print("test"),
+            "Delete a note / key: d"
+            ),
+            (
+            "List Zametka",
+            lambda : MainWin.lsZametka(MainWin),
+            "List all notes / key: l"
+            ),
+            (
+            "Exit",
+            lambda : exit(),
+            "Quit the program / key: q"
+            )
+            ])
 
-def Main() :
-    int = Version("1.10.1")
-    print(int)
+Main = MainWin.Main(MainWin)
 Main()
