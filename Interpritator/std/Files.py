@@ -1,7 +1,7 @@
 import ctypes
 
 # Загружаем нативную библиотеку
-_lib = ctypes.CDLL("./Interpritator/std/Files.so")
+_lib = ctypes.CDLL("/usr/local/lib/ryton/Interpritator/std/Files.so")
 _lib.listDir.restype = ctypes.c_int
 
 def write_file(path: str, content: str):

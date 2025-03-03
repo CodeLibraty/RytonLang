@@ -1,108 +1,14 @@
 module import {
-    std.TUIX[*] std.Terminal[Terminal] std.System[exit]
-    std.Files[create_dir:mkdir|list_dir:ls|delete_file:rmfile|write_file:mkfile]
-    std.DeBugger[debug]
-    std.lib[clear]
+    std.MetaEngine.game
+    std.MetaEngine.gameobject
+    std.MetaEngine.components[SpriteRenderer,InputHandler]
 }
 
-pack MainWin {
-    init {
-        this.home = Path('~')
-        this.Dir  = f'{this.home}/Zametki'
-    }
+func Main {
+    game = Game(800, 600, "Raylib Game")
 
-    func createZametka(this) {
-        try {
-            title = input("Enter the title of the note: ")
-            data = input("Enter the content of the note: ")
-            clear('Unix')
-            path = mkfile(f"/home/rejzi/Zametki/{title}", data)
-            print(f"<green><success> <bold>Success! save to {path}</bold></green>")
-            input("enter to return")
-        } elerr Exception as e {
-            print(f"<red><warning> <bold>Error:</bold></red> {e}")
-            input("enter to return")
-        }
-    }
+    player = game.scene.add(GameObject(400, 300))
+    player.add_component(SpriteRenderer("player.png"))
 
-    func readZametka(this) {
-        try {
-            title = input("Enter the title of the note: ")
-            data = read_json(this.Dir + '/' + title)
-            print(data)
-            input("enter to return")
-        } elerr Exception as e {
-            print(f"<red><warning> <bold>Error:</bold></red> {e}")
-            input("enter to return")
-        }
-    }
-
-    func deleteZametka(this, title: String) !validate {
-        try {
-            rmfile(this.Dir + title)
-            print("<green><success> <bold>Success</bold></green>")
-            input("enter to return")
-        } elerr Exception as e {
-            print(f"<red><warning> <bold>Error:</bold></red> {e}")
-            input("enter to return")
-        }
-    }
-
-    func lsZametka(this) {
-        try {
-            files = ls('/home/rejzi/Zametki')
-            if files == [] or None { :: files = ['Nothing'] :: }
-            print(floating_list(items=files, title='enter for return'))
-        } elerr Exception as e {
-            print(f"<red><warning> <bold>Error:</bold></red> {e}")
-            input("enter to return")
-        }
-    }
-
-    func Main(this) {
-
-        term = Terminal()
-        width = term.get_size().columns
-
-        active_panel = 'left'
-        current_view = None
-        show_hint = False
-
-        term.set_title("Zametker")
-        term.rule("Zametker")
-
-        term.clear()
-
-        infinit 0.1 {
-            choice = menu("choose an option", [
-                (
-                    "Create Zametka",
-                    func() {this.createZametka(this)},
-                    "Crate a new note / key: c"
-                ),
-                (
-                    "Read Zametka",
-                    func() {this.readZametka(this)},
-                    "Read a note / key: r"
-                ),
-                (
-                    "Delete Zametka",
-                    func() {print("test")},
-                    "Delete a note / key: d"
-                ),
-                (
-                    "List Zametka",
-                    func() {this.lsZametka(this)},
-                    "List all notes / key: l"
-                ),
-                (
-                    "Exit",
-                    func() {exit()},
-                    "Quit the program / key: q"
-                )
-            ])
-        }
-    }
+    game.run()
 }
-
-Main = MainWin.Main(this)

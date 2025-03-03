@@ -60,6 +60,8 @@ class ClassTransformer:
         # Ищем все классы
         matches = list(re.finditer(r'pack\s+(\w+)\s*{', code))
         matches += list(re.finditer(r'pack\s+(\w+)\s*::\s*(\w+)\s*{', code))
+        matches += list(re.finditer(r'pack\s+(\w+)\s*::\s*(\w+)\s*!\s*(\w+)\s*{', code))
+        matches += list(re.finditer(r'pack\s+(\w+)\s*!\s*(\w+)\s*{', code))
         
         # Идем с конца, чтобы не сбить позиции при замене
         for match in reversed(matches):
@@ -79,7 +81,7 @@ class ClassTransformer:
                 
             # Заменяем this в найденном блоке
             class_block = code[start:pos]
-            new_block = class_block.replace('this', class_name)
+            new_block = class_block.replace('this', 'self')
             code = code[:start] + new_block + code[pos:]
         
         return code
@@ -655,17 +657,20 @@ class ControlFlowTransformer:
     def transform_elif(self, code):
         return re.sub(r'} elif \s*(.*?)\s* :', r'elif \1:', code)
 
+    def transform_oneline_if(self, code): # работает и на elif тоже
+        return re.sub(r'if \s*(.*?)\s* => ([\s\S]*?)\n', r'if \1 { :: \2 :: }\n', code)
+
+    def transform_oneline_else(self, code): # работает и на elif тоже
+        return re.sub(r'else => ([\s\S]*?)\n', r'else { :: \1 :: }\n', code)
+
     def transform_elerr3(self, code):
         return re.sub(r'elerr \s*(.*?)\s* :', r'except \1:', code)
 
     def transform_elerr4(self, code):
         return re.sub(r'elerr :', r'except :', code)
 
-    def transform_one_line_try_elerr(self, code):
-        return re.sub(r'([ \t]*)try\s*{([^}]*?)}\s*elerr\s*(.*?)\s*{([^}]*?)}', r'\1try:\1    \2\n\1except \3:\n\1   \4', code)
-
     def transform_one_line_try(self, code):
-        return re.sub(r'([ \t]*)try\s*{([^}]*?)}', r'\1try: \2\n\1except:\n\1    pass', code)
+        return re.sub(r'([ \t]*)try\s*=>\s*([\s\S]*?)\n', r'\1try: \2\n\1except: pass', code)
 
     def transform_thread(self, code):
         return re.sub(r'thread\s+(\w+)\s*\{([\s\S]*?)\}', self.create_thread, code)
@@ -839,6 +844,13 @@ class ExpressionTransformer:
             return f"\n{indent}{operator}\n{indent}{operator2}"
 
         return re.sub(r'([ \t]*)\s*(.*?)\s* :: \s*(.*?)\s*', replace, code)
+
+    def transform_line_syntax(self, code):
+        def replace(match):
+            code = match.group(1)
+            return f"{code}"
+
+        return re.sub(r'\n\s*\|\s*([\s\S]*?)', replace, code)
 
     def transform_pipe_operator(self, code):
         return re.sub(r'(\w+)\s*\|>\s*(\w+)', r'\2(\1)', code)
@@ -1014,38 +1026,28 @@ class DataTransformer:
 class Comments:
     def transform_doc_comments(self, code):
         def replace_doc(match):
-            indent = match.group(1)
-            content = match.group(2)
-            
-            # Парсим специальные маркеры
-            doc_parts = []
-            current_section = None
-            section_content = []
-            
-            for line in content.split('\n'):
-                if line.strip().endswith('#'):  # Однострочный маркер
-                    marker, text = line.split('#', 1)
-                    doc_parts.append(f":param {marker.lower()}: {text}")
-                elif line.strip().endswith('#> '):  # Многострочный маркер
-                    if current_section:
-                        doc_parts.append('\n'.join(section_content))
-                    current_section = line.strip()[:-1]
-                    section_content = []
-                elif current_section:
-                    section_content.append(f"{indent}    {line.strip()}")
-                    
-            if section_content:
-                doc_parts.append('\n'.join(section_content))
-                
-            return f'{indent}"""\n{indent}{"\n".join(doc_parts)}\n{indent}"""'
+            content = match.group(1)
+   
+            return f'"""{content}"""'
 
-        return re.sub(r'^([ \t]*?)/!/\s*([\s\S]*?)/!/', '', code, flags=re.MULTILINE)
+        return re.sub(r'/!/\s*([\s\S]*?)/!/', '', code)
+
+    def transform_programm_info(self, code):
+        def replace_doc(match):
+            content = match.group(3)
+                
+            return f'"""\n{content}\n"""'
+
+        return re.sub(r'/!/(\-*?)INFO:(.*?)/!/([\s\S]*?)/!/(\-*?)/!/', replace_doc, code)
 
     def transform_comm_syntax(self, code):
-        code = re.sub(r'</\s*(.*?)\s*/>', r'', code, flags=re.DOTALL)
-        code = re.sub(r'//\s*(.*?)\s*', r'#', code, flags=re.DOTALL)
+        code = re.sub(r'</\s*([\s\S]*?)\s*/>', r'', code, flags=re.DOTALL)
+        code = re.sub(r'//\s*([\s\S]*?)\s*\n', r'', code, flags=re.DOTALL)
         return code
 
+    def transform_shedbug(self, code):
+        code = re.sub(r'#!([\s\S]*?)\n', r'', code, flags=re.DOTALL)
+        return code
 
 comments = Comments()
 data = DataTransformer()
@@ -1093,7 +1095,10 @@ def transform_defer(code):
 def transform(code, raw_blocks):
     # Вызываем методы из классов
 
-    #code = comments.transform_doc_comments(code)
+    code = comments.transform_doc_comments(code)
+    code = comments.transform_programm_info(code)
+    code = comments.transform_comm_syntax(code)
+    code = comments.transform_shedbug(code)
     code = Function.transform_macro(code)
     code = Class.transform_user_self(code)
     code = Class.OOP_Transformation(code)
@@ -1102,7 +1107,10 @@ def transform(code, raw_blocks):
     code = Function.transform_lambda(code)
     code = expression.transform_special_operators(code)
     code = controlflow.transform_event(code)
+    code = controlflow.transform_oneline_if(code)
+    code = controlflow.transform_oneline_else(code)
     code = expression.transform_dots_syntax(code)
+    code = expression.transform_line_syntax(code)
     code = Class.transform_contracts_body(code)
     code = Class.transform_struct(code)
     code = module.transform_package_import(code)
@@ -1134,9 +1142,6 @@ def transform(code, raw_blocks):
         code = code.replace(old, new)
 
     code = Function.transform_decorators(code)
-
-    # Трансформация синтаксиса с правильными вызовами
-    
     #code = data.transform_metatable(code)
     #code = data.transform_table(code)
     code = module.transform_import_modules(code)
@@ -1150,8 +1155,6 @@ def transform(code, raw_blocks):
     code = Class.transform_data(code)
     code = Class.transform_private(code)
     code = data.transform_lazy(code)
-
-    code = controlflow.transform_one_line_try_elerr(code)
     code = controlflow.transform_one_line_try(code)
     code = controlflow.transform_elerr(code)
     code = controlflow.transform_elerr2(code)

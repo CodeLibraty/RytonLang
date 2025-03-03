@@ -1,8 +1,9 @@
 import os
 import sys
 from pathlib import Path
-from tools.UIProfiler import RytonProfiler, runprofile
+
 from Interpritator.Core import SharpyLang
+from tools.Packer import RytonPacker
 
 def setup_ryton_environment():
     if getattr(sys, 'frozen', False):
@@ -69,16 +70,32 @@ def main():
             code = f.read()
             ryton.run(code)
 
+    if command == "translate":
+        with open(filename, 'r', encoding='utf-8') as f:
+            code = f.read()
+            python_code = ryton.transform_syntax(code)
+        print(python_code)
+
     elif command == "run-profile":
-        from threading import Thread
-        profiler = RytonProfiler()
-        Thread(target=lambda: runprofile(), daemon=True).start()
+        #from threading import Thread
+        #profiler = RytonProfiler()
+        #Thread(target=lambda: runprofile(), daemon=True).start()
 
         with open(filename, 'r', encoding='utf-8') as f:
             code = f.read()
             ryton.run(code)
 
         input("enter for exit from program > ") 
+
+    # комманда для запаковки проекта в один модуль
+    elif command == "pack":
+        packer = RytonPacker()
+        # Получаем путь к папке с проектом
+        project_dir = os.path.dirname(filename)
+        output_name = os.path.splitext(filename)[0]
+        os.makedirs(f"{project_dir}/build_pack", exist_ok=True)
+        output_name = f"{project_dir}/build_pack/lib"
+        packer.pack_project(project_dir, output_name)
 
     elif command == "compile":
         with open(filename, 'r', encoding='utf-8') as f:

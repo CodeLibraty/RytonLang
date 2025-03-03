@@ -11,13 +11,14 @@ dist/
 # Zig окружение
 Interpritator/ZigLang/lib/*
 Interpritator/ZigLang/zig
-Interpritator/ZigLAng/exports/*
 # все файлы сборок
 tests/**/dist/
 tests/**/build/
 tests/**/__pycache__/
 tests/**/bundle/
 tests/**/*.pyc
+# файлы PyPy
+Interpritator/PyPyLang/*
 
 # прочее
 *.pyc

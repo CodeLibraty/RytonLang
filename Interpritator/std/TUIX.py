@@ -80,7 +80,7 @@ emojis = {
     # Разделители
     'bullet': '•',
     'diamond': '◆',        'square': '■',
-    'circle': '●',          'triangle': '▲',
+    'circle': '●',         'triangle': '▲',
     
     # Рамки
     'box_h': '─',          'box_v': '│',

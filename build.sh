@@ -2,7 +2,10 @@
 
 NUITKA_OPTIONS="--jobs=10 --follow-imports --include-package=Interpritator \
 --include-data-file=Interpritator/stdFunction.py=Interpritator/stdFunction.py \
---output-dir=dist --nofollow-import-to=numpy --nofollow-import-to=ray --nofollow-import-to=dask --nofollow-import-to=PyQt6 --nofollow-import-to=numba --nofollow-import-to=cython --include-module=kivy --include-module=kivymd --include-module=jpype --standalone"
+--output-dir=dist --nofollow-import-to=numpy --nofollow-import-to=ray \
+--nofollow-import-to=dask --nofollow-import-to=PyQt6 --nofollow-import-to=numba \
+--nofollow-import-to=cython --include-module=kivy --include-module=kivymd \
+--include-module=jpype --standalone"
 
 echo Установка/проверка зависимостей
 #pip install -r requirements.txt

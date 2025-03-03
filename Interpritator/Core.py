@@ -92,14 +92,20 @@ class SharpyLang:
             'ZigLang': 'ZigLang',   'ZigLang.Bridge': 'ZigLang.Bridge',
             'std':   'std',
 
-            'std.HyperConfigFormat': 'std.HyperConfigFormat',
-            'std.RuVix.Effects':     'std.RuVix.Effects',
-            'std.RuVix.App':         'std.RuVix.App,pygame',
-            'std.QuantUI':           'std.QuantUI',
-            'std.QuantUI.App':       'std.QuantUI.App',
-            'std.KeyBinder':         'std.KeyBinder',
-            'std.DeviceTools':       'std.DeviceTools',
+            'std.RyTable':          'std.RyTable',
+            'std.RuVix.Effects':    'std.RuVix.Effects',
+            'std.RuVix.App':        'std.RuVix.App,pygame',
 
+            'std.DrawGL':            'std.DrawGL',
+            'std.DrawGL.window':     'std.DrawGL.window',
+            'std.DrawGL.graphics':   'std.DrawGL.graphics',
+            'std.DrawGL.colors':     'std.DrawGL.colors',
+            'std.DrawGL.text':       'std.DrawGL.text',
+            'std.DrawGL.shaders':    'std.DrawGL.shaders',
+
+            'std.MetaEngine':        'std.MetaEngine',
+
+            'std.KeyBinder':   'std.KeyBinder',    'std.DeviceTools': 'std.DeviceTools',
             'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
             'std.PowerAPI':    'std.PowerAPI',     'std.RuVix':       'std.RuVix',
             'std.UpIO':        'std.UpIO',         'std.Rask':        'std.Rask',
@@ -345,8 +351,6 @@ parallel = Parallel().parallel()
     def run(self, code):
         try:
             # Валидация синтаксиса
-            #if not self.syntax_analyzer.validate(code):
-            #    sys.exit(1)
 
             # Трансформируем синтаксис перед парсингом
             transformed_code = self.transform_syntax(code)
@@ -399,10 +403,7 @@ parallel = Parallel().parallel()
             
             try:
                 self.error_handler.start_tracing()
-                subprocess.run(["/home/rejzi/Downloads/pypy3.11-v7.3.18-linux64/bin/pypy3.11", f"{self.ryton_root}/Interpritator/temp.ry"])
-            except SyntaxError as error:
-                self.error_handler.stop_tracing()
-                self.error_handler.handle_error(error, code, transformed_code)
+                subprocess.run([f"{self.ryton_root}/Interpritator/PyPyLang/bin/pypy3.11", f"{self.ryton_root}/Interpritator/temp.ry"])
             except Exception as error:
                 self.error_handler.stop_tracing()
                 self.error_handler.handle_error(error, code, transformed_code)

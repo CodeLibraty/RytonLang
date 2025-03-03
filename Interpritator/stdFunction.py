@@ -264,6 +264,37 @@ def cached(maxsize=128):
     return decorator
 
 # ClASSES
+
+class switch:
+    def __init__(self, value, context=None):
+        self.value = value
+        self.cases = []
+        self.default = None
+        self.context = context
+        self.matched = False
+        
+    def case(self, pattern, action):
+        if not self.matched and self.value.startswith(pattern):
+            self.matched = True
+            if self.context:
+                action(self.context)
+        return self # Всегда возвращаем self
+        
+
+    def when(self, condition, action):
+        if not self.matched and condition:
+            self.matched = True
+            return action(self.value)
+        return self
+        
+    def else_(self, action):
+        if not self.matched:
+            if self.context:
+                action(self.context, self.value)
+        return self # Всегда возвращаем self
+
+
+
 class Contract:
     def __init__(self):
         self.pre_conditions = []

@@ -44,7 +44,7 @@ func heavy_calc(data: List) {
 
 ## 5. Модификаторы функций
 ```
-func heavy_calc(data: List) cached|async|logged {
+func heavy_calc(data: List) !cached|async|logged {
     // тяжелые вычисления
 }
 ```

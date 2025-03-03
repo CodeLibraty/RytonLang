@@ -45,7 +45,7 @@ class Shell:
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
-                    env=self.env or env,
+                    env=os.environ.copy(),
                     cwd=cwd
                 )
             else:
@@ -57,7 +57,7 @@ class Shell:
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
-                    env=self.env or env,
+                    env=os.environ.copy(),
                     cwd=cwd
                 )
 
@@ -81,11 +81,11 @@ class Shell:
         try:
             if shell:
                 result = subprocess.run(cmd, shell=True, capture_output=capture, 
-                                     text=True, env=self.env or env, cwd=cwd)
+                                     text=True, env=os.environ.copy(), cwd=cwd)
             else:
                 args = shlex.split(cmd)
                 result = subprocess.run(args, capture_output=capture,
-                                     text=True, env=self.env or env, cwd=cwd)
+                                     text=True, env=os.environ.copy(), cwd=cwd)
             return result.stdout
         except Exception as e:
             return f"Error: {str(e)}"
@@ -97,12 +97,12 @@ class Shell:
             if not procs:
                 p = subprocess.Popen(shlex.split(cmd), 
                                    stdout=subprocess.PIPE,
-                                   env=self.env)
+                                   env=os.environ.copy())
             else:
                 p = subprocess.Popen(shlex.split(cmd),
                                    stdin=procs[-1].stdout,
                                    stdout=subprocess.PIPE, 
-                                   env=self.env)
+                                   env=os.environ.copy())
             procs.append(p)
         
         return procs[-1].communicate()[0].decode()
@@ -111,7 +111,7 @@ class Shell:
         """Запуск в фоне с именем процесса"""
         proc = subprocess.Popen(shlex.split(cmd),
                               start_new_session=True,
-                              env=self.env)
+                              env=os.environ.copy())
         name = name or f"proc_{proc.pid}"
         self.processes[name] = proc
         return name
@@ -161,19 +161,6 @@ class Shell:
     def getenv(self, key, default=None):
         """Получить переменную окружения"""
         return env.get(key, default)
-
-    def cd(self, path):
-        """Сменить директорию"""
-        try:
-            os.chdir(os.path.expanduser(path))
-            env['PWD'] = os.getcwd()
-            return True
-        except:
-            return False
-
-    def pwd(self):
-        """Текущая директория"""
-        return os.getcwd()
 
     def system(self, cmd):
         """Выполнить команду через system()"""
