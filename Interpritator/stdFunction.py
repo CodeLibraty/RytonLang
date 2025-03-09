@@ -9,9 +9,11 @@ from PackageSystem import PackageSystem
 from ErrorHandler import RytonTypeError
 from DataTypes import *
 from typing import *
+from functools import partial, wraps
 import threading
 import inspect
 import psutil
+import re
 
 # MODIFICATORS
 def readonly(cls):
@@ -243,6 +245,63 @@ def profile(func: Callable) -> Callable:
         return result
     return wrapper
 
+def autothis(cls):
+    # Получаем все методы класса
+    methods = [name for name, value in cls.__dict__.items() 
+              if callable(value) and not name.startswith('__')]
+              
+    # Модифицируем методы
+    for method_name in methods:
+        original = getattr(cls, method_name)
+        
+        # Создаем обертку с правильной передачей self
+        def make_wrapper(method):
+            def wrapper(self, *args, **kwargs):
+                # Делаем self доступным в замыкании метода
+                method.__globals__['self'] = self
+                result = method(*args, **kwargs)
+                # Убираем self из глобальных после вызова
+                del method.__globals__['self']
+                return result
+            return wrapper
+            
+        # Заменяем метод
+        setattr(cls, method_name, make_wrapper(original))
+        
+    return cls
+
+def inherit(*bases):
+    def decorator(cls):
+        class Enhanced:
+            def __new__(cls, *args, **kwargs):
+                # Создаем инстанс
+                instance = super().__new__(cls)
+                
+                # Инициализируем все базовые классы
+                for base in bases:
+                    base.__init__(instance)
+                    
+                # Копируем все методы из базовых классов
+                for base in bases:
+                    for name, method in base.__dict__.items():
+                        if not name.startswith('__'):
+                            setattr(instance, name, method.__get__(instance, cls))
+                
+                return instance
+                
+            def __init__(self, *args, **kwargs):
+                # Вызываем инициализацию текущего класса
+                if hasattr(cls, '__init__'):
+                    cls.__init__(self, *args, **kwargs)
+                    
+        # Копируем методы декорируемого класса
+        for name, method in cls.__dict__.items():
+            if not name.startswith('__'):
+                setattr(Enhanced, name, method)
+                
+        return Enhanced
+    return decorator
+
 def metrics(func: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         start = time.time()
@@ -263,8 +322,31 @@ def cached(maxsize=128):
         return lru_cache(maxsize=maxsize)(func)
     return decorator
 
-# ClASSES
+def connect_with_retry(max_attempts=5):
+    import rpyc
+    import time
+    
+    for attempt in range(max_attempts):
+        try:
+            return rpyc.connect("localhost", 18861)
+        except ConnectionRefusedError:
+            if attempt < max_attempts - 1:
+                time.sleep(0.5)  # Ждем пока сервер запустится
+            else:
+                raise
 
+# Используем в декораторе
+def qui(cls):
+    conn = connect_with_retry()
+    
+    def wrapper(*args, **kwargs):
+        instance = cls(*args, **kwargs)
+        instance.qui = conn.root
+        return instance
+        
+    return wrapper
+
+# ClASSES
 class switch:
     def __init__(self, value, context=None):
         self.value = value
@@ -293,7 +375,87 @@ class switch:
                 action(self.context, self.value)
         return self # Всегда возвращаем self
 
+class struct:
+    def __init__(self, name):
+        self.name = name
+        self._fields = {}
+        self._instance = None
+        
+    def field(self, name, type_cls):
+        self._fields[name] = type_cls
+        return self
+        
+    def __call__(self, **values):
+        for name, value in values.items():
+            setattr(self, name, self._fields[name](value))
+        return self
+        
+    def String(self, min_len=None, max_len=None, pattern=None):
+        def validate(value):
+            if not isinstance(value, str): 
+                raise TypeError(f"Must be String")
+            if min_len and len(value) < min_len:
+                raise ValueError(f"Min length: {min_len}")
+            if max_len and len(value) > max_len:
+                raise ValueError(f"Max length: {max_len}")
+            if pattern and not re.match(pattern, value):
+                raise ValueError(f"Must match pattern: {pattern}")
+            return value
+        return validate
+        
+    def Int(self, min_val=None, max_val=None, range=None):
+        def validate(value):
+            if not isinstance(value, int):
+                raise TypeError("Must be Int")
+            if min_val and value < min_val:
+                raise ValueError(f"Min value: {min_val}")
+            if max_val and value > max_val:
+                raise ValueError(f"Max value: {max_val}")
+            if range and value not in range:
+                raise ValueError(f"Must be in range: {range}")
+            return value
+        return validate
 
+    def Email(self):
+        return lambda x: Email(x)
+        
+    def URL(self):
+        return lambda x: URL(x)
+        
+    def Money(self, currency="USD"):
+        return lambda x: Money(x, currency)
+        
+    def Time(self):
+        return lambda x: Time(*x)
+        
+    def Color(self):
+        return lambda x: Color(*x)
+        
+    def Version(self):
+        return lambda x: Version(x)
+
+    def validate(self):
+        if not self._instance:
+            raise ValueError("No data to validate")
+        for field, validator in self.fields.items():
+            value = getattr(self._instance, field)
+            setattr(self._instance, field, validator(value))
+        return True
+
+    def to_json(self):
+        return json.dumps(self._instance.__dict__)
+        
+    def from_json(self, json_str):
+        data = json.loads(json_str)
+        return self(**data)
+        
+    def copy(self):
+        return deepcopy(self._instance)
+        
+    def merge(self, other):
+        for field, value in other.__dict__.items():
+            setattr(self._instance, field, value)
+        return self
 
 class Contract:
     def __init__(self):

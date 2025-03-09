@@ -216,7 +216,7 @@ class RytonGameWidget(Widget):
             self.canvas.ask_update()
 
 class RytonMDApp(MDApp):
-    def __init__(self, ryton_instance, **kwargs):
+    def __init__(self, ryton_instance=None, **kwargs):
         super().__init__(**kwargs)
         self.ryton = ryton_instance
         self.widgets = {}
@@ -232,7 +232,7 @@ class RytonMDApp(MDApp):
 
 
 class RuVix:
-    def __init__(self, ryton_instance):
+    def __init__(self, ryton_instance=None):
         self.ryton = ryton_instance
         self.app = None
         self.custom_widgets = {}
@@ -442,8 +442,3 @@ class RuVix:
 
     def create_dropdown_menu(self, **kwargs):
         return MDDropdownMenu(**kwargs)
-
-@lru_cache(maxsize=128)
-def init(ryton_instance):
-    print('RuVixApp 1.0 stable [based on kivy]')
-    return RuVix(ryton_instance)

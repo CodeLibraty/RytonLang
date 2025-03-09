@@ -27,7 +27,7 @@ from .ErrorHandler import *
 from .Effects import * 
 from .Pragma import *  
 
-from .SyntaxAnalyzer import *
+#from .SyntaxAnalyzer import *
 from .SyntaxTransformer import *
 
 from .RGC import RytonGC
@@ -84,7 +84,7 @@ class SharpyLang:
         self.error_handler    = RytonErrorHandler()
         self.tracer           = ExecutionTracer()
         self.effect_registry  = EffectRegistry()
-        self.syntax_analyzer  = RytonSyntaxValidator()
+        #self.syntax_analyzer  = RytonSyntaxValidator()
         self.pragma_handler   = PragmaHandler()
         self.package_system   = PackageSystem()
         self.gc               = RytonGC()
@@ -104,6 +104,8 @@ class SharpyLang:
             'std.DrawGL.shaders':    'std.DrawGL.shaders',
 
             'std.MetaEngine':        'std.MetaEngine',
+            'std.QuantUI':           'std.QuantUI',
+            'std.Ryora':             'std.Ryora',
 
             'std.KeyBinder':   'std.KeyBinder',    'std.DeviceTools': 'std.DeviceTools',
             'std.lib':         'std.lib',          'std.DSL':         'std.DSL',
@@ -359,11 +361,12 @@ parallel = Parallel().parallel()
 import os as osystem
 import sys as system
 import time as timexc
-import threading
 
 from asyncio import *
 from functools import *
 from typing import *
+
+import dataclasses, threading
 
 from py4j.java_gateway import JavaGateway
 from cffi import FFI

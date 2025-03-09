@@ -35,6 +35,15 @@ class ClassTransformer:
 
         return re.sub(r'([ \t]*)init\s*:', replace_init, code)
 
+    @lru_cache(maxsize=128)
+    def transform_init_args(self, code):
+        def replace_init(match):
+            indent = match.group(1)
+            args = match.group(2)
+            return f"{indent}def __init__(self,{args}):\n{indent}    "
+
+        return re.sub(r'([ \t]*)init\(([\s\S]*?)\)\s*:', replace_init, code)
+
     def transform_slots(self, code):
         def replace_slots(match):
             fields = match.group(1)
@@ -106,8 +115,8 @@ class ClassTransformer:
 
         # Классы: с/без наследования, с/без метамодификаторов
         class_patterns = [
-            r'pack\s+(\w+)\s+\:\:\s+(\w+)\s*!(.*?)\s* \{',    # pack Name::Parent !mod
-            r'pack\s+(\w+)\s+\:\:\s+(\w+)',             # pack Name::Parent
+            r'pack\s+(\w+)\s+\:\:\s+(.*?)\s*!(.*?)\s* \{',    # pack Name::Parent !mod
+            r'pack\s+(\w+)\s+\:\:\s+(.*?)\s* ',             # pack Name::Parent
             r'pack\s+(\w+)\s*!(.*?)\s* \{',             # pack Name !mod
             r'pack\s+(\w+)\s*',                   # pack Name
         ]
@@ -118,14 +127,30 @@ class ClassTransformer:
                 groups = match.groups()
                 if len(groups) == 3:  # С наследованием и модификатором
                     name, parent, mod = groups
-                    template = f'@{mod}\nclass {name}({parent}) {'{'}'
+                    mods = mod.split("|")
+                    mods_string = ""
+                    for mod in mods:
+                        mods_string += f'@{mod}\n'
+                    parents = parent.split("|")
+                    parents_string = ""
+                    for parent in parents:
+                        parents_string += f'@inherit({parent})\n'
+                    template = f'{parents_string}\n{mods_string}\nclass {name} {'{'}'
                 elif len(groups) == 2:
                     if '::' in match.group(0):  # Только наследование
                         name, parent = groups
-                        template = f'class {name}({parent})'
+                        parents = parent.split("|")
+                        parents_string = ""
+                        for parent in parents:
+                            parents_string += f'@inherit({parent})\n'
+                        template = f'{parents_string}\nclass {name} '
                     else:  # Только модификатор
                         name, mod = groups
-                        template = f'@{mod}\nclass {name} {'{'}'
+                        mods = mod.split("|")
+                        mods_string = ""
+                        for mod in mods:
+                            mods_string += f'@{mod}\n'
+                        template = f'{mods_string}\nclass {name} {'{'}'
                 else:  # Только имя
                     name = groups[0]
                     template = f'class {name}'
@@ -170,62 +195,6 @@ class ClassTransformer:
                 code = re.sub(re.escape(match.group(0)), template, code)
 
         return code
-
-    def transform_struct(self, code):
-        def replace_struct(match):
-            struct_name = match.group(1)
-            fields = match.group(2)
-
-            result = f"class {struct_name}:\n"
-            result += "    def __init__(self, **kwargs):\n"
-
-            validators = []
-            for field in fields.strip().split('\n'):
-                if not field.strip():
-                    continue
-
-                name, type_info = field.split(':')
-                name = name.strip()
-                type_info = type_info.strip()
-
-                if '(' in type_info:
-                    type_name = type_info.split('(')[0]
-                    constraints = type_info.split('(')[1].split(')')[0]
-
-                    result += f"        self.{name} = kwargs.get('{name}')\n"
-
-                    for constraint in constraints.split(','):
-                        key, value = constraint.split('=')
-                        validators.append(f"        if not self._validate_{key}(self.{name}, {value}): "
-                                    f"raise ValueError(f'{name} failed {key} validation')")
-                else:
-                    result += f"        self.{name} = kwargs.get('{name}')\n"
-
-            if validators:
-                result += "\n    def validate(self):\n"
-                result += '\n'.join(validators)
-                result += "\n        return True\n"
-
-            result += """
-        @staticmethod
-        def _validate_min(value, min_val):
-            return len(str(value)) >= min_val if isinstance(value, str) else value >= min_val
-
-        @staticmethod
-        def _validate_max(value, max_val):
-            return len(str(value)) <= max_val if isinstance(value, str) else value <= max_val
-
-        @staticmethod
-        def _validate_pattern(value, pattern):
-            import re
-            return bool(re.match(pattern, str(value)))
-        """
-
-            return result
-
-        return re.sub(r'struct\s+(\w+)\s*\{([\s\S]*?)\}', replace_struct, code, flags=re.MULTILINE)
-
-
 
     def transform_data(self, code):
         def replace_data(match):
@@ -418,20 +387,23 @@ class FunctionTransformer:
         # Словарь соответствия модификаторов и декораторов
         META_MODIFIERS = {
             # Для классов (pack)
-            'slots':     '@dataclasses.dataclass(slots=True)',
-            'frozen':    '@dataclasses.dataclass(frozen=True)',
-            'final':     '@final',
-            'singleton': '@singleton',
-            'interface': '@abc.abstractmethod',
-            'immutable': '@immutable',
+            'slots':     'dataclasses.dataclass(slots=True)',
+            'frozen':    'dataclasses.dataclass(frozen=True)',
+            'final':     'final',
+            'singleton': 'singleton',
+            'interface': 'abc.abstractmethod',
+            'immutable': 'immutable',
             
             # Для функций (func)
-            'async':       '@asyncio.coroutine',
-            'pure':        '@pure_function',
-            'deprecated':  '@deprecated',
-            'timeout':     '@timeout(seconds=5)',
-            'retry':       '@retry(attempts=3)',
-            'trace':       '@trace_calls',
+            'autoself':    'autothis',
+            'utility':     'staticmethod',
+            'factory':     'classmethod',
+            'async':       'asyncio.coroutine',
+            'pure':        'pure_function',
+            'deprecated':  'deprecated',
+            'timeout':     'timeout(seconds=5)',
+            'retry':       'retry(attempts=3)',
+            'trace':       'trace_calls',
             'validate':    'validate_params',
             'cached':      'cached(maxsize=128)',
             'profile':     'profile',
@@ -903,6 +875,13 @@ class DataTransformer:
         return re.sub(r'table\s+([\s\S]*?)\s*<\{([\s\S]*?)\}>', 
                     lambda m: f"{m.group(1)} = MetaTable({{{m.group(2)}}})", code)
 
+    def transform_defer_table(self, code):
+        def replace_defer_table(match):
+            content = match.group(1)
+            print(content)
+            return f"{content}"
+        return re.sub(r'\(\{([\s\S]*?)\}\)', replace_defer_table, code)
+ 
     @lru_cache(maxsize=128)
     def transform_table(self, code):
         def replace_table(match):
@@ -1099,6 +1078,7 @@ def transform(code, raw_blocks):
     code = comments.transform_programm_info(code)
     code = comments.transform_comm_syntax(code)
     code = comments.transform_shedbug(code)
+    code = data.transform_defer_table(code)
     code = Function.transform_macro(code)
     code = Class.transform_user_self(code)
     code = Class.OOP_Transformation(code)
@@ -1112,7 +1092,6 @@ def transform(code, raw_blocks):
     code = expression.transform_dots_syntax(code)
     code = expression.transform_line_syntax(code)
     code = Class.transform_contracts_body(code)
-    code = Class.transform_struct(code)
     code = module.transform_package_import(code)
     code = data.protect_tables(code)
 
@@ -1171,6 +1150,7 @@ def transform(code, raw_blocks):
     code = Class.transform_slots(code)
     code = Class.transform_legasy_pack(code)
     code = Class.transform_init(code)
+    code = Class.transform_init_args(code)
     code = controlflow.transform_infinit(code)
     code = controlflow.transform_repeat(code)
     code = expression.transform_default_assignment(code)

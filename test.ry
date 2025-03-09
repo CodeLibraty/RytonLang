@@ -1,14 +1,81 @@
 module import {
-    std.MetaEngine.game
-    std.MetaEngine.gameobject
-    std.MetaEngine.components[SpriteRenderer,InputHandler]
+    std.QuantUI[*]
 }
 
-func Main {
-    game = Game(800, 600, "Raylib Game")
+qui = connect().root
 
-    player = game.scene.add(GameObject(400, 300))
-    player.add_component(SpriteRenderer("player.png"))
+pack Calculator !autothis {
+    func calculate(result, display) {
+        expr = "".join(result)
+        try {
+            result[0] = str(eval(expr))
+            result.clear()  # Очищаем массив
+            result.append(str(eval(expr)))  # Добавляем только результат
+        } elerr {
+            result[0] = "Error"
+        }
+        qui.set_text(display, result[0])
+    }
 
-    game.run()
+    func append_digit(btn, result, display) {
+        if result[0] == "0" or result[0] == "Error" {
+            result[0] = btn  # Заменяем начальный 0 или Error
+        } else {
+            result.append(btn)
+        }
+        qui.set_text(display, "".join(result))
+    }
+
+    func clear(result, display) {
+        result[0] = "0"
+        qui.set_text(display, "0")
+    }
+
+    func Main {
+        window = qui.create_app()
+        
+        # Основной вертикальный лейаут
+        layout = qui.create_widget("BoxLayout")
+        
+        # Дисплей
+        display = qui.create_widget("Label", text="0")
+        qui.add_widget(layout, display)
+        
+        # Сетка кнопок
+        grid = qui.create_widget("GridLayout")
+        qui.add_widget(layout, grid)
+
+        that = this
+        result = ["0"]
+        
+        buttons = [
+            "7", "8", "9", "/",
+            "4", "5", "6", "*",
+            "1", "2", "3", "-",
+            "0", "C", "=", "+",
+            ".",
+        ]
+        
+        for btn in buttons {
+            button = qui.create_widget("Button", text=btn)
+            qui.add_widget(grid, button)
+            
+            if btn == "=" {
+                qui.bind(button, func(_) { that.calculate(result, display)})
+            } elif btn == "C" {
+                qui.bind(button, func(_) { that.clear(result, display)})
+            } else {
+                # Создаем функцию-замыкание для каждой кнопки
+                func make_handler(digit) {
+                    return func(_) { that.append_digit(digit, result, display) }
+                }
+                qui.bind(button, make_handler(btn))
+            }
+        }
+        
+        qui.run()
+    }
 }
+
+func Main() => Calculator().Main()
+

@@ -2,11 +2,12 @@
 import os as osystem
 import sys as system
 import time as timexc
-import threading
 
 from asyncio import *
 from functools import *
 from typing import *
+
+import dataclasses, threading
 
 from py4j.java_gateway import JavaGateway
 from cffi import FFI
@@ -22,143 +23,83 @@ osystem.chdir("/home/rejzi/projects/CLI/RytonLang-PyPy")
 
 gateway = JavaGateway()
 parallel = Parallel().parallel()
-from std.System import exit,login_name
-from std.Files import *
-from std.Terminal import Terminal as term
-from std.KeyBinder import on_key
-from std.DateTime import today,now
-from std.Shell import Shell
-from std.TUIX import *
-from std.Path import *
+from std.QuantUI import *
 
 
-import platform
-class DeltaShell:
-    def __init__(self):
-        
-        self.os     = platform.freedesktop_os_release()["NAME"]
-        self.login  = login_name()
-        self.cwd    = pwd().replace(f"/home/{self.login}", "~")
-        
-        self.term_size = term.get_size()
+qui = connect().root
+
+@autothis
+
+class Calculator :
+    
+    def calculate(result, display) :
+        expr = "".join(result)
+        try :
+            result[0] = str(eval(expr))
+            result.clear()  # Очищаем массив
+            result.append(str(eval(expr)))  # Добавляем только результат
+        except :
+            result[0] = "Error"
+        qui.set_text(display, result[0])
     
     
-    def cmd_ls(self) :
-        items = ls()
-        
-        dirs = []
-        files = []
-        
-        for item in items :
-            full_path = os.path.join(pwd(), item)
-            if item.startswith(".") :
-                
-                continue
-            if is_dir(full_path) :
-                
-                dirs.append(item)
-            elif is_file(full_path) :
-                
-                files.append(item)
-        dirs.sort()
-        files.sort()
-        
-        num_files = len(files)
-        printed_files = []
-        
-        for i, d in enumerate(dirs, 1) :
-            dir_indent = 0
-            if files <= dirs :
-                dir_indent += 2
-                if i % 3 == 0 :
-                    print()
-            
-            indent_multiplier = 1.5
-            
-            dir_indent = " " * (
-            self.term_size[0] -
-            len(d) -
-            int(
-            (
-            self.term_size[0] / 2
-            ) * indent_multiplier
-            )
-            )
-            
-            print(f"<blue>{d}{dir_indent}</blue>", end=" ")
-            
-            indent_multiplier = 1.2
-            num_files -= 1
-            indent = " "
-            
-            for f in files[num_files:] :
-                printed_files.append(f)
-                print(f"{indent}{f}")
-                break
-        
-        no_printed_files = len(files) - len(printed_files)
-        if no_printed_files == 0 :
-            
-            print()
+    def append_digit(btn, result, display) :
+        if result[0] == "0" or result[0] == "Error" :
+            result[0] = btn  # Заменяем начальный 0 или Error
         else :
-            
-            for f in files[:no_printed_files] :
-                
-                print(f)
-                
+            result.append(btn)
+        qui.set_text(display, "".join(result))
     
     
-    @validate_params
-    def cmd_cd(self, cmd: String) :
-        command = cmd.split()
-        if command[0] == "cd" :
-            
-            cd(command[1])
-        else :
-            
-            cd(command[0])
+    def clear(result, display) :
+        result[0] = "0"
+        qui.set_text(display, "0")
     
     
-    def cmd_time(self) :
-        now_time = now()
-        now_time = String(now_time).split(" ")[1].split(".")
+    def Main() :
+        window = qui.create_app()
         
-        print(now_time[0])
-    
-    
-    @validate_params
-    def command_run(self, command: String) :
-        if command == "" :
+        # Основной вертикальный лейаут
+        layout = qui.create_widget("BoxLayout")
+        
+        # Дисплей
+        display = qui.create_widget("Label", text="0")
+        qui.add_widget(layout, display)
+        
+        # Сетка кнопок
+        grid = qui.create_widget("GridLayout")
+        qui.add_widget(layout, grid)
+        
+        that = self
+        result = ["0"]
+        
+        buttons = [
+        "7", "8", "9", "/",
+        "4", "5", "6", "*",
+        "1", "2", "3", "-",
+        "0", "C", "=", "+",
+        ".",
+        ]
+        
+        for btn in buttons :
+            button = qui.create_widget("Button", text=btn)
+            qui.add_widget(grid, button)
             
-            pass
-        else :
-            try: Shell.rt_run(self, cmd=command)
-            except: pass    
-    
-    def Main(self) :
-        while True: 
-            timexc.sleep(0.05)
-            
-            self.term_size = term.get_size()
-            self.cwd       = pwd().replace(f"/home/{self.login}", "~")
-            term_tab = " " * (self.term_size[0]
-            - len(self.login)
-            - len(self.cwd)
-            - len(self.os)
-            - 9
-            )
-            
-            print(f"<round_dr><line_h> {self.cwd} {term_tab} {self.os} <square> {self.login} ")
-            cmd = input("╰─ ")
-            
-            switch(value=cmd, context=self).case("exit",   lambda self:  exit()                 ).case("clear",  lambda self:  term.clear()           ).case("time",   lambda self:  self.cmd_time()        ).case("ls",     lambda self:  self.cmd_ls()          ).case("cd ",    lambda self:  self.cmd_cd(cmd)       ).case("cd ~",   lambda self:  self.cmd_cd("Home")    ).case("cd ..",  lambda self:  self.cmd_cd("..")      ).case("cd",     lambda self:  self.cmd_cd("Home")    ).else_(          lambda self, cmd:  self.command_run(cmd)  )
-            
+            if btn == "=" :
+                qui.bind(button, lambda _:  that.calculate(result, display))
+            elif btn == "C" :
+                qui.bind(button, lambda _:  that.clear(result, display))
+            else :
+                # Создаем функцию-замыкание для каждой кнопки
+                
+                def make_handler(digit) :
+                    return lambda _:  that.append_digit(digit, result, display)
+                qui.bind(button, make_handler(btn))
+        
+        qui.run()
+
+def Main(): 
+    Calculator().Main()
 
 
-def Main() :
-    shell = DeltaShell()
-    try :
-        shell.Main()
-    except KeyboardInterrupt:
-        shell.Main()
 Main()
