@@ -1,34 +1,5 @@
-# Виртуальное окружение
-Interpritator/ryton_venv/
-ryton_venv/
-cache/*
-venv/
-
-# Скомпилированные файлы и дистрибутивы
-build/*
-*.so
-
-# Zig окружение
-Interpritator/ZigLang/lib/*
-Interpritator/ZigLang/zig
-# все файлы сборок
-tests/**/dist/
-tests/**/build/
-tests/**/__pycache__/
-tests/**/bundle/
-tests/**/*.pyc
-# файлы PyPy
-Interpritator/PyPyLang/*
-
-# прочее
-*.pyc
-__pycache__/
-*.py[cod]
-*$py.class
-*.pyo
-*.pyd
-.kivy
-.venv
-.vscode
-cache
-
+test
+bin
+project.toml
+.git
+test.nim

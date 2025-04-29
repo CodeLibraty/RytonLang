@@ -7,30 +7,19 @@ It doesn't matter which community you're from, whether it's zig, java or python,
 Не важно из какого сообщества вы, будь то zig, java или python, мы рады всем и надеемся что вам здесь понравится!
 
 ## Info about Ryton
-- [Russian](docs/ru/readme.md)
-- [English](docs/en/readme.md)
+- [Russian](docs/ru/comingsoon.md)
+- [English](docs/en/comingsoon.md)
 
 ## Documenation
-- [Russian](docs/ru/documentation.md)
-- [English](docs/en/documentation.md)
-
-## Examples
-- [Russian](docs/ru/examples.md)
-- [English](docs/en/examples.md)
+- [Russian](docs/ru/FullRytonDocumentation/Base/Welcom.md)
+- [English](docs/en/FullRytonDocumentation/Base/Welcom.md)
 
 ## Contributing
-- [Russian](docs/ru/contributing.md)
-- [English](docs/en/contributing.md)
+- Coming Soon
+-  //  [Russian](docs/ru/contributing.md)
+-  //  [English](docs/en/contributing.md)
 
-P.S. I'm from Russia and I don't know English that well. sorry for the crooked translation ¯\\_(ツ)\_/¯
+## License
+ - MIT
 
-### tags:
-programming-language
-system-programming
-python-alternative
-zig-integration
-native-performance
-cross-platform
-developer-tools
-compiler
-transpiler
+P.S. I'm from Russia and I don't know English that well. sorry for the crooked translation for docs ¯\\_(ツ)\_/¯
