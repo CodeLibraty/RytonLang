@@ -70,6 +70,11 @@ method visitFuncDef*(self: AstVisitor, node: Node) {.base.} =
     self.visit(param)
   self.visit(node.funcBody)
 
+method visitLambdaDef*(self: AstVisitor, node: Node) {.base.} =
+  for param in node.funcParams:
+    self.visit(param)
+  self.visit(node.funcBody)
+
 method visitPackDef*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.packBody)
 
@@ -138,6 +143,10 @@ method visitGroup*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.groupExpr)
 
 method visitAssign*(self: AstVisitor, node: Node) {.base.} =
+  if node.assignProps.len > 0:
+    for prop in node.assignProps:
+      self.visit(prop)
+
   self.visit(node.assignTarget)
   self.visit(node.assignVal)
 
@@ -192,39 +201,41 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
     return
     
   case node.kind
-  of nkProgram: self.visitProgram(node)
-  of nkBlock: self.visitBlock(node)
-  of nkExprStmt: self.visitExprStmt(node)
-  of nkFuncDef: self.visitFuncDef(node)
-  of nkPackDef: self.visitPackDef(node)
-  of nkParam: self.visitParam(node)
-  of nkIf: self.visitIf(node)
-  of nkInit: self.visitInit(node)
-  of nkFor: self.visitFor(node)
-  of nkInfinit: self.visitInfinit(node)
-  of nkRepeat: self.visitRepeat(node)
-  of nkTry: self.visitTry(node)
-  of nkEvent: self.visitEvent(node)
-  of nkImport: self.visitImport(node)
-  of nkOutPut: self.visitReturn(node)
-  of nkBinary: self.visitBinary(node)
-  of nkUnary: self.visitUnary(node)
-  of nkCall: self.visitCall(node)
-  of nkProperty: self.visitProperty(node)
-  of nkGroup: self.visitGroup(node)
-  of nkAssign: self.visitAssign(node)
-  of nkIdent: self.visitIdent(node)
-  of nkNumber: self.visitNumber(node)
-  of nkString: self.visitString(node)
-  of nkBool: self.visitBool(node)
-  of nkArray: self.visitArray(node)
-  of nkArrayAccess: self.visitArrayAccess(node)
-  of nkSlice: self.visitSlice(node) 
-  of nkTupleAccess: self.visitTupleAccess(node)
-  of nkRangeExpr: self.visitRangeExpr(node)
-  of nkChainCall: self.visitChainCall(node)
-  of nkSubscript: self.visitSubscript(node)
-  of nkNoop: self.visitNoop(node)
+  of nkProgram:           self.visitProgram(node)
+  of nkBlock:             self.visitBlock(node)
+  of nkExprStmt:          self.visitExprStmt(node)
+  of nkFuncDef:           self.visitFuncDef(node)
+  of nkLambdaDef:         self.visitLambdaDef(node)
+  of nkPackDef:           self.visitPackDef(node)
+  of nkParam:             self.visitParam(node)
+  of nkIf:                self.visitIf(node)
+  of nkInit:              self.visitInit(node)
+  of nkFor:               self.visitFor(node)
+  of nkInfinit:           self.visitInfinit(node)
+  of nkRepeat:            self.visitRepeat(node)
+  of nkTry:               self.visitTry(node)
+  of nkEvent:             self.visitEvent(node)
+  of nkImport:            self.visitImport(node)
+  of nkOutPut:            self.visitReturn(node)
+  of nkBinary:            self.visitBinary(node)
+  of nkUnary:             self.visitUnary(node)
+  of nkCall:              self.visitCall(node)
+  of nkProperty:          self.visitProperty(node)
+  of nkGroup:             self.visitGroup(node)
+  of nkAssign:            self.visitAssign(node)
+  of nkIdent:             self.visitIdent(node)
+  of nkNumber:            self.visitNumber(node)
+  of nkString:            self.visitString(node)
+  of nkBool:              self.visitBool(node)
+  of nkArray:             self.visitArray(node)
+  of nkTypeCheck:         self.visit(node)
+  of nkArrayAccess:       self.visitArrayAccess(node)
+  of nkSlice:             self.visitSlice(node) 
+  of nkTupleAccess:       self.visitTupleAccess(node)
+  of nkRangeExpr:         self.visitRangeExpr(node)
+  of nkChainCall:         self.visitChainCall(node)
+  of nkSubscript:         self.visitSubscript(node)
+  of nkNoop:              self.visitNoop(node)
 
 # Предварительное объявление метода transform
 method transform*(self: AstTransformer, node: Node): Node {.base.}
@@ -281,6 +292,25 @@ method transformFuncDef*(self: AstTransformer, node: Node): Node {.base.} =
   result.funcMods = node.funcMods
   result.funcRetType = node.funcRetType
   result.funcBody = body
+  result.line = node.line
+  result.column = node.column
+
+method transformLambdaDef*(self: AstTransformer, node: Node): Node {.base.} =
+  var newParams: seq[Node] = @[]
+  for param in node.lambdaParams:
+    let transformed = self.transform(param)
+    if transformed != nil:
+      newParams.add(transformed)
+  
+  let body = self.transform(node.lambdaBody)
+  if body == nil:
+    return nil
+  
+  result = newNode(nkFuncDef)
+  result.lambdaParams = newParams
+  result.lambdaMods = node.funcMods
+  result.lambdaRetType = node.funcRetType
+  result.lambdaBody = body
   result.line = node.line
   result.column = node.column
 
@@ -511,16 +541,20 @@ method transformGroup*(self: AstTransformer, node: Node): Node {.base.} =
 
 method transformAssign*(self: AstTransformer, node: Node): Node {.base.} =
   let target = self.transform(node.assignTarget)
-  if target == nil:
-    return nil
-  
   let value = self.transform(node.assignVal)
-  if value == nil:
-    return nil
   
   result = newNode(nkAssign)
+  result.declType = node.declType
+  result.assignOp = node.assignOp
   result.assignTarget = target
   result.assignVal = value
+  
+  # Трансформируем свойства
+  if node.assignProps.len > 0:
+    result.assignProps = @[]
+    for prop in node.assignProps:
+      result.assignProps.add(self.transform(prop))
+
   result.line = node.line
   result.column = node.column
 
@@ -545,6 +579,14 @@ method transformString*(self: AstTransformer, node: Node): Node {.base.} =
 method transformBool*(self: AstTransformer, node: Node): Node {.base.} =
   result = newNode(nkBool)
   result.boolVal = node.boolVal
+  result.line = node.line
+  result.column = node.column
+
+method transformTypeCheck*(self: AstTransformer, node: Node): Node {.base.} =
+  result = newNode(nkTypeCheck)
+  result.checkType = node.checkType
+  result.checkFunc = node.checkFunc
+  result.checkExpr = self.transform(node.checkExpr)
   result.line = node.line
   result.column = node.column
 
@@ -602,39 +644,41 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
     return nil
     
   case node.kind
-  of nkProgram: return self.transformProgram(node)
-  of nkBlock: return self.transformBlock(node)
-  of nkExprStmt: return self.transformExprStmt(node)
-  of nkFuncDef: return self.transformFuncDef(node)
-  of nkPackDef: return self.transformPackDef(node)
-  of nkParam: return self.transformParam(node)
-  of nkIf: return self.transformIf(node)
-  of nkInit: return self.transformInit(node)
-  of nkFor: return self.transformFor(node)
-  of nkInfinit: return self.transformInfinit(node)
-  of nkRepeat: return self.transformRepeat(node)
-  of nkTry: return self.transformTry(node)
-  of nkEvent: return self.transformEvent(node)
-  of nkImport: return self.transformImport(node)
-  of nkOutPut: return self.transformReturn(node)
-  of nkBinary: return self.transformBinary(node)
-  of nkUnary: return self.transformUnary(node)
-  of nkCall: return self.transformCall(node)
-  of nkProperty: return self.transformProperty(node)
-  of nkGroup: return self.transformGroup(node)
-  of nkAssign: return self.transformAssign(node)
-  of nkIdent: return self.transformIdent(node)
-  of nkNumber: return self.transformNumber(node)
-  of nkString: return self.transformString(node)
-  of nkBool: return self.transformBool(node)
-  of nkArray: return self.transformArray(node)
-  of nkArrayAccess: return self.transformArrayAccess(node)
-  of nkSlice: return self.transformSlice(node)
-  of nkTupleAccess: return self.transformTupleAccess(node)
-  of nkRangeExpr: return self.transformRangeExpr(node)
-  of nkChainCall: return self.transformChainCall(node)
-  of nkSubscript: return self.transformSubscript(node)
-  of nkNoop: return self.transformNoop(node)
+  of nkProgram:       return self.transformProgram(node)
+  of nkBlock:         return self.transformBlock(node)
+  of nkExprStmt:      return self.transformExprStmt(node)
+  of nkFuncDef:       return self.transformFuncDef(node)
+  of nkLambdaDef:     return self.transformLambdaDef(node)
+  of nkPackDef:       return self.transformPackDef(node)
+  of nkParam:         return self.transformParam(node)
+  of nkIf:            return self.transformIf(node)
+  of nkInit:          return self.transformInit(node)
+  of nkFor:           return self.transformFor(node)
+  of nkInfinit:       return self.transformInfinit(node)
+  of nkRepeat:        return self.transformRepeat(node)
+  of nkTry:           return self.transformTry(node)
+  of nkEvent:         return self.transformEvent(node)
+  of nkImport:        return self.transformImport(node)
+  of nkOutPut:        return self.transformReturn(node)
+  of nkBinary:        return self.transformBinary(node)
+  of nkUnary:         return self.transformUnary(node)
+  of nkCall:          return self.transformCall(node)
+  of nkProperty:      return self.transformProperty(node)
+  of nkGroup:         return self.transformGroup(node)
+  of nkAssign:        return self.transformAssign(node)
+  of nkIdent:         return self.transformIdent(node)
+  of nkNumber:        return self.transformNumber(node)
+  of nkString:        return self.transformString(node)
+  of nkBool:          return self.transformBool(node)
+  of nkTypeCheck:     return self.transformTypeCheck(node)
+  of nkArray:         return self.transformArray(node)
+  of nkArrayAccess:   return self.transformArrayAccess(node)
+  of nkSlice:         return self.transformSlice(node)
+  of nkTupleAccess:   return self.transformTupleAccess(node)
+  of nkRangeExpr:     return self.transformRangeExpr(node)
+  of nkChainCall:     return self.transformChainCall(node)
+  of nkSubscript:     return self.transformSubscript(node)
+  of nkNoop:          return self.transformNoop(node)
 
 # Пример конкретного визитора: SymbolCollector
 type
@@ -686,6 +730,45 @@ method visitFuncDef*(self: SymbolCollector, node: Node) =
   
   # Посещаем тело функции
   self.visit(node.funcBody)
+  
+  # Восстанавливаем предыдущую область видимости
+  self.currentScope = previousScope
+
+method visitLambdaDef*(self: SymbolCollector, node: Node) =
+  # Создаем символ функции
+  var paramSymbols: seq[Symbol] = @[]
+  for param in node.lambdaParams:
+    let paramSymbol = Symbol(
+      name: param.paramName,
+      kind: skParameter,
+      paramType: param.paramType,
+      line: param.line,
+      column: param.column
+    )
+    paramSymbols.add(paramSymbol)
+  
+  let lambdaSymbol = Symbol(
+    kind: skFunction,
+    params: paramSymbols,
+    returnType: node.lambdaRetType,
+    modifiers: node.lambdaMods,
+    line: node.line,
+    column: node.column
+  )
+  
+  # Добавляем функцию в текущую область видимости
+  if not self.currentScope.define(lambdaSymbol): discard
+  
+  # Создаем новую область видимости для тела функции
+  let previousScope = self.currentScope
+  self.currentScope = newSymbolTable(previousScope)
+  
+  # Добавляем параметры в область видимости функции
+  for param in paramSymbols:
+    discard self.currentScope.define(param)
+  
+  # Посещаем тело функции
+  self.visit(node.lambdaBody)
   
   # Восстанавливаем предыдущую область видимости
   self.currentScope = previousScope
@@ -786,6 +869,18 @@ proc `$`*(node: Node): string =
       result.add(" !" & node.funcMods.join("|"))
     result.add("\n  " & ($node.funcBody).replace("\n", "\n  "))
   
+  of nkLambdaDef:
+    result = "LambdaDef: " & "("
+    for i, param in node.lambdaParams:
+      if i > 0: result.add(", ")
+      result.add($param)
+    result.add(")")
+    if node.lambdaRetType.len > 0:
+      result.add(":" & node.lambdaRetType)
+    if node.lambdaMods.len > 0:
+      result.add(" !" & node.lambdaMods.join("|"))
+    result.add("\n  " & ($node.lambdaBody).replace("\n", "\n  "))
+
   of nkPackDef:
     result = "PackDef: " & node.packName
     if node.packParents.len > 0:
@@ -793,7 +888,7 @@ proc `$`*(node: Node): string =
     if node.packMods.len > 0:
       result.add(" !" & node.packMods.join("|"))
     result.add("\n  " & ($node.packBody).replace("\n", "\n  "))
-  
+
   of nkParam:
     result = node.paramName
     if node.paramType.len > 0:
@@ -872,7 +967,15 @@ proc `$`*(node: Node): string =
     result = "Assign:\n"
     result.add("  Target: " & ($node.assignTarget).replace("\n", "\n  ") & "\n")
     result.add("  Value: " & ($node.assignVal).replace("\n", "\n  "))
-  
+
+  of nkTypeCheck:
+    result = "Type Check:\n"
+    result.add(" Type: " & node.checkType & "\n")
+    result.add(" Function: " & node.checkFunc & "\n")
+    if node.checkExpr != nil:
+      result.add(" Expression:\n")
+      result.add(" " & ($node.checkExpr).replace("\n", "\n "))
+
   of nkIdent:
     result = "Ident: " & node.ident
   
@@ -1009,7 +1112,19 @@ proc printAST*(node: Node, indent: int = 0) =
       echo indentStr & "  Modifiers: " & node.funcMods.join(", ")
     echo indentStr & "  Body:"
     printAST(node.funcBody, indent + 4)
-  
+
+  of nkLambdaDef:
+    echo indentStr & fmt"Lambda: "
+    echo indentStr & "  Parameters:"
+    for param in node.lambdaParams:
+      echo indentStr & "    " & param.paramName & (if param.paramType.len > 0: ": " & param.paramType else: "")
+    if node.lambdaRetType.len > 0:
+      echo indentStr & "  Return Type: " & node.lambdaRetType
+    if node.lambdaMods.len > 0:
+      echo indentStr & "  Modifiers: " & node.lambdaMods.join(", ")
+    echo indentStr & "  Body:"
+    printAST(node.lambdaBody, indent + 4)
+
   of nkPackDef:
     echo indentStr & "Pack: " & node.packName
     if node.packParents.len > 0:
@@ -1111,7 +1226,18 @@ proc printAST*(node: Node, indent: int = 0) =
     echo indentStr & "  Operator: " & node.assignOp
     echo indentStr & "  Value:"
     printAST(node.assignVal, indent + 4)
-  
+    if node.assignProps.len > 0:
+      echo indentStr & "  Type Check:"
+      for prop in node.assignProps:
+        # Добавляем проверку типа узла
+        case prop.kind
+        of nkIdent:
+          echo indentStr & "    " & prop.ident
+        of nkTypeCheck:
+          echo indentStr & "    <" & prop.checkType & ":" & prop.checkFunc & ">"
+        else:
+          echo indentStr & "    Unknown type property"
+
   of nkBinary:
     echo indentStr & "Binary Expression:"
     echo indentStr & "  Operator: " & node.binOp
@@ -1151,7 +1277,15 @@ proc printAST*(node: Node, indent: int = 0) =
     echo indentStr & "  Object:"
     printAST(node.propObj, indent + 4)
     echo indentStr & "  Property: " & node.propName
-  
+
+  of nkTypeCheck:
+    echo indentStr & "Type Check:"
+    echo indentStr & "  Type: " & node.checkType
+    echo indentStr & "  Function: " & node.checkFunc
+    if node.checkExpr != nil:
+      echo indentStr & "  Expression:"
+      printAST(node.checkExpr, indent + 4)
+
   of nkGroup:
     echo indentStr & "Grouped Expression:"
     printAST(node.groupExpr, indent + 2)

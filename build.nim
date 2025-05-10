@@ -3,7 +3,8 @@ import std/[os, strutils, strformat, osproc]
 const 
   SrcDir = "src"
   BinDir = "bin"
-  DocsDir = "docs"
+  DocsDir = "documentations"
+  WasmDir = "wasm"
 
 proc createDirIfNotExists(dir: string) =
   if not dirExists(dir):
@@ -21,7 +22,7 @@ proc buildProject(release: bool = false) =
   createDirIfNotExists(BinDir)
   
   let 
-    outputFile = if release: BinDir / "rytonc" else: BinDir / "ryton_debug"
+    outputFile = if release: BinDir / "ryton" else: BinDir / "ryton_debug"
     releaseFlag = if release: "-d:release --opt:speed" else: "-d:debug --debuginfo --linedir:on"
   
   let cmd = fmt"nim c {releaseFlag} -o:{outputFile} {SrcDir}/ryton.nim"
@@ -29,6 +30,23 @@ proc buildProject(release: bool = false) =
     echo fmt"Build successful: {outputFile}"
   else:
     echo "Build failed"
+
+proc buildWasm() =
+  createDirIfNotExists(WasmDir)
+  
+  let cmd = fmt"nim c -d:emscripten -o:{WasmDir}/ryton.js {SrcDir}/ryton.nim"
+  if runCommand(cmd):
+    echo fmt"WebAssembly build successful: {WasmDir}/ryton.js"
+  else:
+    echo "WebAssembly build failed"
+
+proc buildJs() =
+  createDirIfNotExists("web")
+  let cmd = fmt"nim js -d:release --out:web/ryton.js {SrcDir}/ryton.nim"
+  if runCommand(cmd):
+    echo "JS build successful: web/ryton.js"
+  else:
+    echo "JS build failed"
 
 proc generateDocs() =
   createDirIfNotExists(DocsDir)
@@ -67,6 +85,8 @@ Usage:
 
 Commands:
   build         Build debug version
+  wasm          Build WebAssembly version
+  js            Build JS version
   release       Build release version
   test          Run tests
   docs          Generate documentation
@@ -85,6 +105,10 @@ proc main() =
   case args[0].toLowerAscii()
   of "build":
     buildProject()
+  of "wasm":
+    buildWasm()
+  of "js":
+    buildJs()
   of "release":
     buildProject(release = true)
   of "docs":

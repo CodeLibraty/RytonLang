@@ -110,7 +110,7 @@ proc findKeywords*(self: RytonCompiler): Table[string, int] =
   
   let keywordKinds = {
     tkFunc, tkPack, tkEvent, tkInit, tkMacro, tkIf, tkElif, tkElse,
-    tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkElerr, tkSwitch, tkWith,
+    tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkError, tkSwitch, tkWith,
     tkLazy, tkData, tkTable, tkPrivate, tkSlots, tkImport, tkModule, tkNoop
   }
   

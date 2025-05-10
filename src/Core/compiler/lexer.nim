@@ -1,12 +1,20 @@
 import std/[strutils, strformat, tables]
 
 type
+  LexerContext* = enum
+    lcNormal,     # Обычный контекст
+    lcExpression, # Внутри выражения
+    lcStatement,  # Начало statement
+    lcAttribute,  # После точки
+    lcImport,     # Внтури module import
+    lcTypeCheck   # Внтури блока типовой проверки
+
   TokenKind* = enum
     # Ключевые слова
     tkFunc, tkPack, tkEvent, tkInit, tkMacro, tkIf, tkElif, tkElse
-    tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkElerr, tkSwitch, tkWith
+    tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkError, tkSwitch, tkWith
     tkLazy, tkData, tkTable, tkPrivate, tkSlots, tkImport, tkModule,
-    tkNoop, tkOutPut
+    tkNoop, tkOutPut, tkLambda
     
     # Операторы
     tkPlus, tkMinus, tkMul, tkDiv, tkAssign, tkEq, tkNe, tkLt, tkGt, tkLe, tkGe
@@ -14,6 +22,12 @@ type
     tkDot, tkComma, tkColon, tkColonColon, tkSemicolon, tkQuestion, tkBang, tkPercent,
     tkColonEq, tkTrue, tkFalse, tkDotDot, tkDotDotDot, tkRetType, tkModStart, tkModEnd,
     tkPtr, tkRef, tkBar, tkDef, tkVal
+
+    # Синтаксис свойств
+    tkTypeCheck,    # <
+    tkTypeEnd,      # >
+    tkTypeColon,    # :
+    tkTypeFunc,     # Имя функции в проверке типа
     
     # Скобки и разделители
     tkLParen, tkRParen, tkLBrace, tkRBrace, tkLBracket, tkRBracket
@@ -37,10 +51,10 @@ type
     start*: int
     line*: int
     column*: int
+    context*: LexerContext
     keywords*: Table[string, TokenKind]
 
 proc newLexer*(source: string): Lexer =
-  ## Создает новый лексер для заданного исходного кода
   result = Lexer(
     source: source,
     tokens: @[],
@@ -48,60 +62,57 @@ proc newLexer*(source: string): Lexer =
     start: 0,
     line: 1,
     column: 1,
+    context: lcNormal,
     keywords: {
-      "func": tkFunc,
-      "pack": tkPack,
-      "event": tkEvent,
-      "init": tkInit,
-      "macro": tkMacro,
-      "def": tkDef,
-      "val": tkVal,
-      "if": tkIf,
-      "elif": tkElif,
-      "else": tkElse,
-      "for": tkFor,
-      "in": tkIn,
-      "infinit": tkInfinit,
-      "repeat": tkRepeat,
-      "try": tkTry,
-      "elerr": tkElerr,
-      "switch": tkSwitch,
-      "with": tkWith,
-      "lazy": tkLazy,
-      "data": tkData,
-      "table": tkTable,
-      "private": tkPrivate,
-      "slots": tkSlots,
-      "module import": tkModule,
-      "output": tkOutPut,
-      "true": tkTrue,
-      "false": tkFalse,
-      "noop": tkNoop
+      "func":       tkFunc,
+      "lambda":     tkLambda,
+      "pack":       tkPack,
+      "event":      tkEvent,
+      "init":       tkInit,
+      "macro":      tkMacro,
+      "def":        tkDef,
+      "val":        tkVal,
+      "if":         tkIf,
+      "elif":       tkElif,
+      "else":       tkElse,
+      "for":        tkFor,
+      "in":         tkIn,
+      "infinit":    tkInfinit,
+      "repeat":     tkRepeat,
+      "try":        tkTry,
+      "error":      tkError,
+      "switch":     tkSwitch,
+      "with":       tkWith,
+      "lazy":       tkLazy,
+      "data":       tkData,
+      "table":      tkTable,
+      "private":    tkPrivate,
+      "slots":      tkSlots,
+      "output":     tkOutPut,
+      "true":       tkTrue,
+      "false":      tkFalse,
+      "noop":       tkNoop,
+      "module import":  tkModule
     }.toTable
   )
 
 proc isAtEnd(self: Lexer): bool =
-  ## Проверяет, достигнут ли конец исходного кода
   self.current >= self.source.len
 
 proc advance(self: Lexer): char =
-  ## Возвращает текущий символ и переходит к следующему
   result = self.source[self.current]
   inc(self.current)
   inc(self.column)
 
 proc peek(self: Lexer): char =
-  ## Возвращает текущий символ без перехода к следующему
   if self.isAtEnd(): return '\0'
   return self.source[self.current]
 
 proc peekNext(self: Lexer): char =
-  ## Возвращает следующий символ без перехода к нему
   if self.current + 1 >= self.source.len: return '\0'
   return self.source[self.current + 1]
 
 proc match(self: Lexer, expected: char): bool =
-  ## Проверяет, соответствует ли текущий символ ожидаемому
   if self.isAtEnd(): return false
   if self.source[self.current] != expected: return false
   
@@ -110,7 +121,6 @@ proc match(self: Lexer, expected: char): bool =
   return true
 
 proc addToken(self: Lexer, kind: TokenKind, lexeme: string = "") =
-  ## Добавляет токен в список токенов
   let text = if lexeme == "": self.source[self.start..<self.current] else: lexeme
   self.tokens.add(Token(
     kind: kind,
@@ -120,7 +130,7 @@ proc addToken(self: Lexer, kind: TokenKind, lexeme: string = "") =
   ))
 
 proc scanString(self: Lexer) =
-  ## Обрабатывает строковый литерал
+  self.context = lcExpression
   while self.peek() != '"' and not self.isAtEnd():
     if self.peek() == '\n':
       inc(self.line)
@@ -128,19 +138,15 @@ proc scanString(self: Lexer) =
     discard self.advance()
   
   if self.isAtEnd():
-    # Ошибка: незакрытая строка
     self.addToken(tkUnknown)
     return
   
-  # Закрывающая кавычка
   discard self.advance()
-  
-  # Значение строки (без кавычек)
   let value = self.source[self.start+1..<self.current-1]
   self.addToken(tkString, value)
 
 proc scanSingleQuoteString(self: Lexer) =
-  ## Обрабатывает строковый литерал в одинарных кавычках
+  self.context = lcExpression
   while self.peek() != '\'' and not self.isAtEnd():
     if self.peek() == '\n':
       inc(self.line)
@@ -148,72 +154,100 @@ proc scanSingleQuoteString(self: Lexer) =
     discard self.advance()
   
   if self.isAtEnd():
-    # Ошибка: незакрытая строка
     self.addToken(tkUnknown)
     return
   
-  # Закрывающая кавычка
   discard self.advance()
-  
-  # Значение строки (без кавычек)
   let value = self.source[self.start+1..<self.current-1]
   self.addToken(tkString, value)
 
 proc scanNumber(self: Lexer) =
-  ## Обрабатывает числовой литерал
+  self.context = lcExpression
   while self.peek().isDigit():
     discard self.advance()
   
-  # Проверяем десятичную точку
   if self.peek() == '.' and self.peekNext().isDigit():
-    # Потребляем точку
     discard self.advance()
-    
-    # Потребляем цифры после точки
     while self.peek().isDigit():
       discard self.advance()
   
   self.addToken(tkNumber)
 
 proc scanIdentifier(self: Lexer) =
-  ## Обрабатывает идентификатор или ключевое слово
-  while self.peek().isAlphaNumeric() or self.peek() == '_':
+  while self.peek().isAlphaNumeric() or self.peek() == '_' or self.peek() == '.':
+    if self.peek() == '.':
+      discard self.advance()
+      if not self.peek().isAlphaAscii():
+        break
     discard self.advance()
 
   let text = self.source[self.start..<self.current]
 
-  # Добавляем проверку составных ключевых слов
-  if text == "module" and self.peek() == ' ':
-    discard self.advance() # пробел
-    if self.source[self.current..self.current+5] == "import":
-      self.current += 6
-      self.addToken(tkModule)
-      return
-  
-  # Проверяем, является ли это ключевым словом
-  let kind = if self.keywords.hasKey(text): self.keywords[text] else: tkIdentifier
-  
-  self.addToken(kind)
+  # Проверяем контекст для правильной обработки ключевых слов
+  case self.context
+  of lcStatement:
+    # В начале statement все ключевые слова обрабатываются как ключевые слова
+    if self.keywords.hasKey(text):
+      self.addToken(self.keywords[text])
+    else:
+      self.addToken(tkIdentifier)
+      self.context = lcExpression
+      
+  of lcAttribute:
+    # После точки всегда идентификатор
+    self.addToken(tkIdentifier)
+    self.context = lcExpression
+    
+  of lcExpression:
+    # В выражении всё идентификаторы кроме операторов и лямбда функций
+    if self.keywords.hasKey(text):
+      self.addToken(self.keywords[text])
+    else:
+      self.addToken(tkIdentifier)
+
+  of lcNormal:
+    if text == "module" and self.peek() == ' ':
+      discard self.advance() 
+      if self.source[self.current..self.current+5] == "import":
+        self.current += 6
+        self.addToken(tkModule)
+        while self.peek().isSpaceAscii: discard self.advance()
+        if self.peek() == '{':
+          discard self.advance()
+          self.addToken(tkLBrace)
+          self.context = lcImport
+    elif self.keywords.hasKey(text):
+      self.addToken(self.keywords[text])
+    else:
+      self.addToken(tkIdentifier)
+      self.context = lcExpression
+
+  of lcTypeCheck:
+    # В контексте типовой проверки все идентификаторы 
+    # обрабатываются как часть кода проверки
+    self.addToken(tkIdentifier)
+
+  of lcImport:
+    # Обрабатываем пути импорта как единые токены
+    while self.peek().isAlphaNumeric() or self.peek() == '.' or self.peek() == '_':
+      discard self.advance()
+    self.addToken(tkIdentifier)
 
 proc scanComment(self: Lexer) =
-  ## Обрабатывает однострочный комментарий
   while self.peek() != '\n' and not self.isAtEnd():
     discard self.advance()
-  
   self.addToken(tkComment)
 
 proc scanMultilineComment(self: Lexer) =
-  ## Обрабатывает многострочный комментарий
   var nesting = 1
-  
   while nesting > 0 and not self.isAtEnd():
     if self.peek() == '/' and self.peekNext() == '*':
-      discard self.advance() # /
-      discard self.advance() # *
+      discard self.advance()
+      discard self.advance()
       inc(nesting)
     elif self.peek() == '*' and self.peekNext() == '/':
-      discard self.advance() # *
-      discard self.advance() # /
+      discard self.advance()
+      discard self.advance()
       dec(nesting)
     elif self.peek() == '\n':
       inc(self.line)
@@ -221,11 +255,9 @@ proc scanMultilineComment(self: Lexer) =
       discard self.advance()
     else:
       discard self.advance()
-  
   self.addToken(tkComment)
 
 proc scanRytonComment(self: Lexer) =
-  ## Обрабатывает специальный комментарий Ryton (</.../>)
   while not (self.peek() == '/' and self.peekNext() == '>') and not self.isAtEnd():
     if self.peek() == '\n':
       inc(self.line)
@@ -233,75 +265,131 @@ proc scanRytonComment(self: Lexer) =
     discard self.advance()
   
   if self.isAtEnd():
-    # Ошибка: незакрытый комментарий
     self.addToken(tkUnknown)
     return
   
-  # Закрывающие символы
-  discard self.advance() # /
-  discard self.advance() # >
-  
+  discard self.advance()
+  discard self.advance()
   self.addToken(tkComment)
 
 proc scanToken(self: Lexer) =
-  ## Сканирует один токен
   let c = self.advance()
   
   case c:
-    of '(': self.addToken(tkLParen)
-    of ')': self.addToken(tkRParen)
-    of '{': self.addToken(tkLBrace)
-    of '}': self.addToken(tkRBrace)
-    of '[': self.addToken(tkLBracket)
-    of ']': self.addToken(tkRBracket)
-    of ',': self.addToken(tkComma)
-    of ';': self.addToken(tkSemicolon)
-    of '?': self.addToken(tkQuestion)
-    of '%': self.addToken(tkPercent)
+    of '(':
+      self.addToken(tkLParen)
+      self.context = lcExpression
+    of ')':
+      self.addToken(tkRParen)
+      self.context = lcExpression
+    of '{':
+      self.addToken(tkLBrace)
+      self.context = lcStatement
+    of '}':
+      self.addToken(tkRBrace)
+      self.context = lcNormal
+    of '[':
+      self.addToken(tkLBracket)
+      self.context = lcExpression
+    of ']':
+      self.addToken(tkRBracket)
+      self.context = lcExpression
+    of ',':
+      self.addToken(tkComma)
+      self.context = lcExpression
+    of ';':
+      self.addToken(tkSemicolon)
+      self.context = lcStatement
+    of '?':
+      self.addToken(tkQuestion)
+      self.context = lcExpression
+    of '%':
+      self.addToken(tkPercent)
+      self.context = lcExpression
     
-    # Операторы с возможными двойными символами
     of '+': 
       if self.match('='): self.addToken(tkPlusEq)
       else: self.addToken(tkPlus)
+      self.context = lcExpression
+      
     of '-': 
       if self.match('='): self.addToken(tkMinusEq)
       else: self.addToken(tkMinus)
+      self.context = lcExpression
+      
     of '*': 
       if self.match('='): self.addToken(tkMulEq)
       else: self.addToken(tkMul)
+      self.context = lcExpression
+      
     of '/': 
       if self.match('/'): self.scanComment()
       elif self.match('*'): self.scanMultilineComment()
       elif self.match('='): self.addToken(tkDivEq)
       else: self.addToken(tkDiv)
+      self.context = lcExpression
+      
     of '=': 
       if self.match('='): self.addToken(tkEq)
       elif self.match('>'): self.addToken(tkFatArrow)
       else: self.addToken(tkAssign)
+      self.context = lcExpression
+
     of '<': 
-      if self.match('='): self.addToken(tkLe)
-      elif self.match('/'): self.scanRytonComment()
-      else: self.addToken(tkLt)
+      if self.peek().isAlphaAscii():
+        # Токен для <
+        self.start = self.current - 1
+        self.addToken(tkTypeCheck)
+        
+        # Токен для типа
+        self.start = self.current
+        while self.peek().isAlphaAscii():
+          discard self.advance()
+        self.addToken(tkIdentifier)
+        
+        if self.match(':'):
+          # Токен для :
+          self.start = self.current - 1
+          self.addToken(tkTypeColon)
+          
+          # Переключаемся в контекст типовой проверки
+          self.context = lcTypeCheck
+          
+          # Собираем код проверки до '>'
+          var codeBuffer = ""
+          var braceLevel = 0
+          
+          while not (self.peek() == '>' and braceLevel == 0) and not self.isAtEnd():
+            if self.peek() == '{': inc braceLevel
+            elif self.peek() == '}': dec braceLevel
+            codeBuffer.add(self.advance())
+          
+          # Добавляем собранный код как один токен
+          self.addToken(tkTypeFunc, codeBuffer.strip())
+          
+          if self.match('>'):
+            # Токен для >
+            self.start = self.current - 1
+            self.addToken(tkTypeEnd)
+            
+          self.context = lcNormal
+
     of '>': 
       if self.match('='): self.addToken(tkGe)
       else: self.addToken(tkGt)
+      self.context = lcExpression
+      
     of '|': 
       if self.match('>'): self.addToken(tkPipe)
       elif self.match(' '): self.addToken(tkBar)
       else: self.addToken(tkUnknown)
+      self.context = lcExpression
+      
     of '&': 
       if self.match('&'): self.addToken(tkAnd)
       else: self.addToken(tkUnknown)
-    of ':':
-      if self.match('='):
-        self.addToken(tkColonEq)  # Оператор ':='
-      if not self.match(' '):
-        if self.match(':'):
-          self.addToken(tkColonColon) # Наследование
-        else:
-          self.addToken(tkRetType)
-      else:
-        self.addToken(tkColon)    # Просто двоеточие ':'
+      self.context = lcExpression
+      
     of '.':
       if self.match('.'):
         if self.match('.'):
@@ -310,11 +398,25 @@ proc scanToken(self: Lexer) =
           self.addToken(tkDotDot)
       else:
         self.addToken(tkDot)
+        self.context = lcAttribute
+        
+    of ':':
+      if self.match('='):
+        self.addToken(tkColonEq)
+      if not self.match(' '):
+        if self.match(':'):
+          self.addToken(tkColonColon)
+        else:
+          self.addToken(tkRetType)
+      else:
+        self.addToken(tkColon)
+      self.context = lcExpression
+        
     of '!': 
       if self.match(' ') or self.match('='):
         self.addToken(tkBang)
       elif self.match('('): 
-        self.addToken(tkModStart)  # Добавляем только !( 
+        self.addToken(tkModStart)
         
         while self.peek() == ' ':
           discard self.advance()
@@ -328,16 +430,19 @@ proc scanToken(self: Lexer) =
           discard self.advance()
         
         if self.match(')'):
-          self.start = self.current - 1  # Устанавливаем start на ')'
+          self.start = self.current - 1
           self.addToken(tkModEnd)
       else:
         self.addToken(tkBang)
+      self.context = lcExpression
+        
     of 'p':
       if self.source[self.current..self.current+2] == "ptr":
         self.current += 3
         self.addToken(tkPtr)
       else:
         self.scanIdentifier()
+        
     of 'r': 
       if self.source[self.current..self.current+2] == "ref":
         self.current += 3
@@ -345,18 +450,17 @@ proc scanToken(self: Lexer) =
       else:
         self.scanIdentifier()
 
-    # Строки
     of '"': self.scanString()
     of '\'': self.scanSingleQuoteString()
     
-    # Пробелы и переносы строк
-    of ' ', '\t', '\r': discard # Игнорируем пробелы
+    of ' ', '\t', '\r': discard
+    
     of '\n': 
       self.addToken(tkNewline)
       inc(self.line)
       self.column = 1
+      self.context = lcStatement
 
-    # Числа и идентификаторы
     else:
       if c.isDigit():
         self.scanNumber()
@@ -366,13 +470,10 @@ proc scanToken(self: Lexer) =
         self.addToken(tkUnknown)
 
 proc scanTokens*(self: Lexer): seq[Token] =
-  ## Сканирует все токены в исходном коде
   while not self.isAtEnd():
-    # Начинаем новый токен
     self.start = self.current
     self.scanToken()
   
-  # Добавляем токен конца файла
   self.tokens.add(Token(
     kind: tkEOF,
     lexeme: "",
@@ -383,16 +484,12 @@ proc scanTokens*(self: Lexer): seq[Token] =
   return self.tokens
 
 proc tokenize*(source: string): seq[Token] =
-  ## Удобная функция для токенизации строки
   let lexer = newLexer(source)
   return lexer.scanTokens()
 
-# Вспомогательные функции для отладки
 proc `$`*(token: Token): string =
-  ## Строковое представление токена
-  result = fmt"{token.kind}('{token.lexeme}' at {token.line}:{token.column})"
+  fmt"{token.kind}('{token.lexeme}' at {token.line}:{token.column})"
 
 proc printTokens*(tokens: seq[Token]) =
-  ## Выводит все токены
   for token in tokens:
     echo token

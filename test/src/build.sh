@@ -1,0 +1,1 @@
+nim c --path:stdLib ./test/src/main.nim

@@ -7,7 +7,7 @@ const
   Description = """
 The Ryton Programming Language Compiler
 A simple and fast programming language that compiles to Nim
-Developed by Code Libraty team (RejziDich)
+Developed by Code Libraty Foundation
 """
 
 type
@@ -38,7 +38,7 @@ proc handleCompile(file: string, output: string) =
   echo fmt"Compiled {file} -> {output}"
 
 proc handleTokens(file: string) =
-  let source = readFile(file)
+  let source = readFile("test/src" / file)
   var compiler = newCompiler(source, "")
   let lexResult = compiler.tokenize()
   if not lexResult.success:
@@ -46,9 +46,10 @@ proc handleTokens(file: string) =
     echo fmt"Line {lexResult.errorLine}, column {lexResult.errorColumn}"
     return
   compiler.printTokenStatistics()
+  echo compiler.tokens
 
 proc handleAst(file: string) =
-  let source = readFile(file)
+  let source = readFile("test/src" / file)
   var compiler = newCompiler(source, "")
   let lexResult = compiler.tokenize()
   if not lexResult.success:

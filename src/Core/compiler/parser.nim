@@ -11,6 +11,7 @@ type
     
     # Определения
     nkFuncDef,        # Определение функции
+    nkLambdaDef,      # Определение лямбда-функции
     nkPackDef,        # Определение класса (pack)
     nkInit,           # init
     nkParam,          # Параметр функции
@@ -40,7 +41,8 @@ type
     nkNumber,         # Число
     nkString,         # Строка
     nkBool,           # Булево значение
-    nkArray,
+    nkArray,          # Массив
+    nkTypeCheck,      # Типо-повденческий контроль
     nkArrayAccess,    # Доступ к элементам массива [index]
     nkSlice,          # Срезы массивов [start..end]
     nkTupleAccess,    # Доступ к элементам кортежа
@@ -83,7 +85,16 @@ type
       funcParams*: seq[Node]
       funcMods*: seq[string]
       funcRetType*: string
+      funcRetTypeModifier*: char
+      funcPublic*: bool
       funcBody*: Node
+
+    of nkLambdaDef:
+      lambdaParams*: seq[Node]
+      lambdaMods*: seq[string]
+      lambdaRetType*: string
+      lambdaRetTypeModifier*: char
+      lambdaBody*: Node
     
     of nkPackDef:
       packName*: string
@@ -94,6 +105,7 @@ type
     of nkParam:
       paramName*: string
       paramType*: string
+      paramTypeModifier*: char
     
     of nkIf:
       ifCond*: Node
@@ -151,19 +163,26 @@ type
       groupExpr*: Node
     
     of nkAssign:
-      declType*: DeclType 
-      assignOp*: string
-      assignTarget*: Node
-      assignVal*: Node
+      declType*:      DeclType 
+      assignOp*:      string
+      assignTarget*:  Node
+      assignVal*:     Node
+      assignProps*:   seq[Node]
     
     of nkIdent:
-      ident*: string
+      ident*:   string
     
     of nkNumber:
-      numVal*: string
+      numVal*:  string
     
     of nkString:
-      strVal*: string
+      strVal*:  string
+
+    of nkTypeCheck:
+      checkType*:   string    # Тип для проверки
+      checkFunc*:   string    # Функция обработки
+      checkBlock*:  Node      # Блок кода (если многострочный блок)
+      checkExpr*:   Node      # Выражение для проверки
 
     of nkArray:
       elements*: seq[Node]
@@ -204,6 +223,7 @@ type
     tokens*: seq[Token]
     current*: int
     errors*: seq[string]
+
 proc newNode*(kind: NodeKind): Node =
   result = Node(kind: kind)
 
@@ -266,6 +286,7 @@ proc statement(p: Parser): Node
 proc parseBlock(p: Parser): Node
 proc parsePackBody(p: Parser): Node
 proc functionDeclaration(p: Parser): Node
+proc lambdaDeclaration(p: Parser): Node
 proc packDeclaration(p: Parser): Node
 proc ifStatement(p: Parser): Node
 proc parseInitBlock(p: Parser): Node
@@ -295,7 +316,7 @@ proc primary(p: Parser): Node =
     result.line = token.line
     result.column = token.column
     return result
-  
+
   if p.match(tkIdentifier):
     let token = p.previous()
     result = newNode(nkIdent)
@@ -534,7 +555,7 @@ proc logicalAnd(p: Parser): Node =
     let right = p.equality()
     
     let binary = newNode(nkBinary)
-    binary.binOp = "&&"
+    binary.binOp = "and"
     binary.binLeft = expr
     binary.binRight = right
     binary.line = operator.line
@@ -551,7 +572,7 @@ proc logicalOr(p: Parser): Node =
     let right = p.logicalAnd()
     
     let binary = newNode(nkBinary)
-    binary.binOp = "||"
+    binary.binOp = "or"
     binary.binLeft = expr
     binary.binRight = right
     binary.line = operator.line
@@ -561,35 +582,74 @@ proc logicalOr(p: Parser): Node =
   return expr
 
 proc assignment(p: Parser): Node =
-  let declType = if p.match(tkDef): dtDef
-                 elif p.match(tkVal): dtVal
-                 else: dtNone
+  # Проверяем наличие типа в угловых скобках
+  var typeProps: seq[Node] = @[]
+  var declType = dtNone
   
-  let expr = p.logicalOr()
-  
-  if p.match(tkAssign, tkPlusEq, tkMinusEq, tkMulEq, tkDivEq):
-    let operator = p.previous()
-    let value = p.assignment()
+  if p.check(tkTypeCheck):
+    discard p.consume(tkTypeCheck, "Expected '<'")
+    let typeName = p.consume(tkIdentifier, "Expected type name").lexeme
     
-    if expr.kind == nkIdent:
-      let assign = newNode(nkAssign)
-      assign.declType = declType  # Тип объявления: var/let/none
+    let typeCheck = newNode(nkTypeCheck)
+    typeCheck.checkType = typeName
+
+    if p.match(tkTypeColon):
+      # Здесь начинаем собирать многострочный код
+      var codeBuffer = ""
+      var braceLevel = 0
       
-      case operator.kind
-      of tkAssign: assign.assignOp = "="
-      of tkPlusEq: assign.assignOp = "+="
-      of tkMinusEq: assign.assignOp = "-="
-      of tkMulEq: assign.assignOp = "*="
-      of tkDivEq: assign.assignOp = "/="
-      else: assign.assignOp = ""
+      while not p.check(tkTypeEnd) and not p.isAtEnd():
+        let token = p.advance()
+        # Собираем все токены в строку кода
+        codeBuffer.add(token.lexeme)
+        if token.kind == tkLBrace: inc braceLevel
+        elif token.kind == tkRBrace: dec braceLevel
+        
+      typeCheck.checkFunc = codeBuffer
+
+    discard p.consume(tkTypeEnd, "Expected '>'")
+    typeProps.add(typeCheck)
+
+  # Стандартная проверка def/val если нет типа
+  declType = if p.match(tkDef):   dtDef
+            elif p.match(tkVal):  dtVal
+            else:                 dtNone
+
+  var expr = p.logicalOr()
+
+  while true:
+    if p.match(tkAssign, tkPlusEq, tkMinusEq, tkMulEq, tkDivEq):
+      let operator = p.previous()
+      let nextToken = p.peek()
       
-      assign.assignTarget = expr
-      assign.assignVal = value
-      assign.line = operator.line
-      assign.column = operator.column
-      return assign
-    
-    p.errors.add(fmt"Invalid assignment target at line {operator.line}, column {operator.column}")
+      let value = if p.check(tkLambda):
+        p.lambdaDeclaration()
+      else:
+        p.assignment()
+
+      if expr.kind == nkIdent:
+        let assign = newNode(nkAssign)
+        assign.declType = declType
+        
+        assign.assignOp = case operator.kind
+          of tkAssign:  "="
+          of tkPlusEq:  "+="
+          of tkMinusEq: "-="
+          of tkMulEq:   "*="
+          of tkDivEq:   "/="
+          else:         ""
+        
+        assign.assignTarget   = expr
+        assign.assignVal      = value
+        assign.assignProps    = typeProps
+        assign.line           = operator.line
+        assign.column         = operator.column
+
+        expr = assign
+      else:
+        p.errors.add(fmt"Invalid assignment target at line {operator.line}, column {operator.column}")
+    else:
+      break
   
   return expr
 
@@ -602,7 +662,14 @@ proc parameter(p: Parser): Node =
   
   # Тип параметра (опционально)
   var paramType = ""
+  var typeModifier = '\0'
+
   if p.match(tkColon):
+    if p.match(tkBang):
+      typeModifier = '!'
+    elif p.match(tkQuestion):
+      typeModifier = '?'
+
     # Собираем полный тип с поддержкой составных типов
     paramType = p.consume(tkIdentifier, "Expected parameter type after ':'").lexeme
     
@@ -633,6 +700,7 @@ proc parameter(p: Parser): Node =
   result = newNode(nkParam)
   result.paramName = name
   result.paramType = paramType
+  result.paramTypeModifier = typeModifier
   result.line = token.line
   result.column = token.column
   return result
@@ -828,7 +896,7 @@ proc tryStatement(p: Parser): Node =
   # Блок try
   let tryBody = p.parseBlock()
   
-  discard p.consume(tkElerr, "Expected 'elerr' after try block")
+  discard p.consume(tkError, "Expected 'error' after try block")
   
   # Опционально: тип ошибки
   var errorType = ""
@@ -846,11 +914,8 @@ proc tryStatement(p: Parser): Node =
   result.column = token.column
   return result
 
-proc functionDeclaration(p: Parser): Node =
-  let token = p.consume(tkFunc, "Expected 'func' keyword")
-  
-  # Имя функции
-  let name = p.consume(tkIdentifier, "Expected function name after 'func'").lexeme
+proc lambdaDeclaration(p: Parser): Node =
+  let token = p.consume(tkLambda, "Expected 'lambda' keyword")
 
   # Параметры
   var params: seq[Node] = @[]
@@ -877,7 +942,92 @@ proc functionDeclaration(p: Parser): Node =
 
   # Тип возвращаемого значения
   var returnType = ""
+  var returnTypeModifier = '\0'
   if p.match(tkRetType):
+    # Проверяем модификатор типа
+    if p.match(tkBang):
+      returnTypeModifier = '!'
+    elif p.match(tkQuestion):
+      returnTypeModifier = '?'
+    
+    returnType = p.consume(tkIdentifier, "Expected return type after ':'").lexeme
+
+  # Модификаторы
+  var modifiers: seq[string] = @[]
+  if p.match(tkModStart):
+    # Пропускаем возможные переносы строк
+    while p.match(tkNewline): discard
+    
+    if p.check(tkIdentifier):
+      modifiers.add(p.advance().lexeme)
+      
+      while p.match(tkComma):
+        # Пропускаем возможные переносы строк
+        while p.match(tkNewline): discard
+        
+        if p.check(tkIdentifier):
+          modifiers.add(p.advance().lexeme)
+    
+    # Пропускаем возможные переносы строк
+    while p.match(tkNewline): discard
+    
+    discard p.consume(tkModEnd, "Expected ')' after modifiers")
+
+  # Тело функции
+  let body = p.parseBlock()
+  
+  result = newNode(nkLambdaDef)
+  result.lambdaParams = params
+  result.lambdaRetType = returnType
+  result.lambdaRetTypeModifier = returnTypeModifier 
+  result.lambdaMods = modifiers
+  result.lambdaBody = body
+  result.line = token.line
+  result.column = token.column
+  return result
+
+proc functionDeclaration(p: Parser): Node =
+  let token = p.consume(tkFunc, "Expected 'func' keyword")
+
+  # Имя функции
+  let name = p.consume(tkIdentifier, "Expected function name after 'func'").lexeme
+
+  # публичная или приватная
+  var public = true
+
+  # Параметры
+  var params: seq[Node] = @[]
+  if p.match(tkLParen):
+    # Пропускаем возможные переносы строк перед первым параметром
+    while p.match(tkNewline): discard
+    
+    if not p.check(tkRParen):
+      # Первый параметр
+      params.add(p.parameter())
+      
+      # Остальные параметры
+      while p.match(tkComma):
+        # Пропускаем возможные переносы строк после запятой
+        while p.match(tkNewline): discard
+        
+        if not p.check(tkRParen):  # Проверяем, что не достигли конца списка
+          params.add(p.parameter())
+    
+    # Пропускаем возможные переносы строк перед закрывающей скобкой
+    while p.match(tkNewline): discard
+    
+    discard p.consume(tkRParen, "Expected ')' after parameters")
+
+  # Тип возвращаемого значения
+  var returnType = ""
+  var returnTypeModifier = '\0'
+  if p.match(tkRetType):
+    # Проверяем модификатор типа
+    if p.match(tkBang):
+      returnTypeModifier = '!'
+    elif p.match(tkQuestion):
+      returnTypeModifier = '?'
+    
     returnType = p.consume(tkIdentifier, "Expected return type after ':'").lexeme
 
   # Модификаторы
@@ -908,8 +1058,10 @@ proc functionDeclaration(p: Parser): Node =
   result.funcName = name
   result.funcParams = params
   result.funcRetType = returnType
+  result.funcRetTypeModifier = returnTypeModifier 
   result.funcMods = modifiers
   result.funcBody = body
+  result.funcPublic = public
   result.line = token.line
   result.column = token.column
   return result
@@ -917,35 +1069,67 @@ proc functionDeclaration(p: Parser): Node =
 proc methodDeclaration(p: Parser): Node =
   let token = p.consume(tkFunc, "Expected 'func' keyword")
   
+  # Методы не могут быть анонимными
+
   # Имя функции
   let name = p.consume(tkIdentifier, "Expected function name after 'func'").lexeme
-  
+
   # Параметры
   var params: seq[Node] = @[]
   if p.match(tkLParen):
+    # Пропускаем возможные переносы строк перед первым параметром
+    while p.match(tkNewline): discard
+    
     if not p.check(tkRParen):
       # Первый параметр
       params.add(p.parameter())
       
       # Остальные параметры
       while p.match(tkComma):
-        params.add(p.parameter())
+        # Пропускаем возможные переносы строк после запятой
+        while p.match(tkNewline): discard
+        
+        if not p.check(tkRParen):  # Проверяем, что не достигли конца списка
+          params.add(p.parameter())
+    
+    # Пропускаем возможные переносы строк перед закрывающей скобкой
+    while p.match(tkNewline): discard
     
     discard p.consume(tkRParen, "Expected ')' after parameters")
 
   # Тип возвращаемого значения
   var returnType = ""
+  var returnTypeModifier = '\0'
   if p.match(tkRetType):
+    # Проверяем модификатор типа
+    if p.match(tkBang):
+      returnTypeModifier = '!'
+    elif p.match(tkQuestion):
+      returnTypeModifier = '?'
+    
     returnType = p.consume(tkIdentifier, "Expected return type after ':'").lexeme
 
   # Модификаторы
   var modifiers: seq[string] = @[]
   if p.match(tkModStart):
-    modifiers.add(p.consume(tkIdentifier, "Expected modifier").lexeme)
-    while p.match(tkComma):
-      modifiers.add(p.consume(tkIdentifier, "Expected modifier").lexeme)
-    discard p.consume(tkModEnd, "Expected ')'")
-  
+    # Пропускаем возможные переносы строк
+    while p.match(tkNewline): discard
+    
+    if p.check(tkIdentifier):
+      modifiers.add(p.advance().lexeme)
+      
+      while p.match(tkComma):
+        # Пропускаем возможные переносы строк
+        while p.match(tkNewline): discard
+        
+        if p.check(tkIdentifier):
+          modifiers.add(p.advance().lexeme)
+    
+    # Пропускаем возможные переносы строк
+    while p.match(tkNewline): discard
+    
+    discard p.consume(tkModEnd, "Expected ')' after modifiers")
+
   # Тело функции
   let body = p.parseBlock()
   
@@ -953,6 +1137,7 @@ proc methodDeclaration(p: Parser): Node =
   result.funcName = name
   result.funcParams = params
   result.funcRetType = returnType
+  result.funcRetTypeModifier = returnTypeModifier 
   result.funcMods = modifiers
   result.funcBody = body
   result.line = token.line
@@ -1055,6 +1240,9 @@ proc statement(p: Parser): Node =
   # Обработка объявлений функций
   if p.check(tkFunc):
     return p.functionDeclaration()
+
+  if p.check(tkLambda):
+    return p.lambdaDeclaration()
   
   # Обработка объявлений пакетов (классов)
   if p.check(tkPack):
@@ -1099,7 +1287,7 @@ proc statement(p: Parser): Node =
     return result
   
   # Если ничего из вышеперечисленного не подошло, то это выражение-оператор
-  return p.expressionStatement()
+  return p.expressionStatement() # TODO: убрать это нахуй отсюда
 
 # Здесь должно быть объявление новой функции
 proc `$`*(node: Node, indent: int = 0): string =

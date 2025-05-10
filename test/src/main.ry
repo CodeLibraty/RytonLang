@@ -1,0 +1,41 @@
+// Copyright (c) 2025, CodeLibraty Foundation
+</
+    ! this is a test file for testing the compiler
+/>
+
+module import {
+    std.Core.stdTypes
+    std.Core.stdModifiers
+    times
+}
+
+pack MainPack {
+    func calcs(n: !Int):!Float !(trace, metrics) {
+        if n <= 1 { echo(n) }
+
+        val myFunc = lambda(a: int, b: int):int {
+            output a + b
+        }
+
+        def result = lambda { echo("this is a function") }
+        
+        def myfunc = lambda (arg: !Int):!Float {
+            echo("this is a function")
+            output "my string"
+        }
+        
+        <Float:
+            echo("this is a float")
+            q = float(q)
+            sas = 1.2
+        > def q = n / 2.8
+        <Float:echao> def pq = q / 1.9
+
+
+        def t = s * 10
+
+        output s
+    }
+}
+
+echo(calc(10))
