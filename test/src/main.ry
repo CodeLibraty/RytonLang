@@ -1,41 +1,53 @@
-// Copyright (c) 2025, CodeLibraty Foundation
-</
-    ! this is a test file for testing the compiler
-/>
-
 module import {
     std.Core.stdTypes
     std.Core.stdModifiers
-    times
+    std.Core.stdFunctions
 }
 
-pack MainPack {
-    func calcs(n: !Int):!Float !(trace, metrics) {
-        if n <= 1 { echo(n) }
+// Copyright (c) 2025, CodeLibraty Foundation
+// ! this is a test file for testing the compiler
 
-        val myFunc = lambda(a: int, b: int):int {
-            output a + b
-        }
+while True {
+    print("Hello World!")
+}
 
-        def result = lambda { echo("this is a function") }
+while 1 == 18 and 2 == 2 or 3 == 3 => print("Я хочу пиццы")
+
+pack Simple => func simple => if name => if name => print("Simple nahuy")
+
+pack Package {
+
+
+
+    func myFunction(name: String) {
+        print("Hello World!", name)
+    }
+
+    func Main {
+        print("HI! I Ryton App")
+        <String> def name = input("Enter your name: ")
+        pause(1000)
         
-        def myfunc = lambda (arg: !Int):!Float {
-            echo("this is a function")
-            output "my string"
-        }
+        print("Hello ", name, "!")
+        <Int> def age = toInt(input("Enter your age: "))
+        pause(1000)
         
-        <Float:
-            echo("this is a float")
-            q = float(q)
-            sas = 1.2
-        > def q = n / 2.8
-        <Float:echao> def pq = q / 1.9
+        if age < 18 => print("You are not old enough to enter this site!") 
+        elif age > 18 {
+            print("You are old enough to enter this site!")
+        } 
+        else => print("You old!") 
 
+        print("You are ", age)
 
-        def t = s * 10
-
-        output s
     }
 }
 
-echo(calc(10))
+def package = mysd.Package(sas, 10, "kdkd", [1, 2, 3])
+package.myFunction("sas")
+package.Main()
+
+
+</
+    func main(@staticArg: Int, ->refArg: String) {}
+/>

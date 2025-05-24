@@ -17,7 +17,7 @@ proc compileZig*(sourcePath: string, target: CompileTarget): bool =
   result = execShellCmd(cmd) == 0
 
 proc compileNim*(target: CompileTarget, srctodir: string, mainFile: string, outputBin: string): bool =
-  let stdlibPath = getCurrentDir() / "bin/stdlib"
+  let stdlibPath = getCurrentDir() / "stdlib"
   let cmd = "nim c --path:" & stdlibPath & " --out:" & outputBin & " " & srctodir / mainFile
   echo "Executing: ", cmd 
   result = execShellCmd(cmd) == 0

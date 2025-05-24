@@ -7,7 +7,7 @@ const
   Description = """
 The Ryton Programming Language Compiler
 A simple and fast programming language that compiles to Nim
-Developed by Code Libraty Foundation
+Developed by CodeLibraty Foundation
 """
 
 type
@@ -17,28 +17,21 @@ type
     cmdTokens,    # Show tokens
     cmdAst        # Show AST
 
-proc handleBuild(dir = getCurrentDir()) =
+proc handleBuild(dir = getCurrentDir(), srcDir: string = "src") =
   let config = ProjectConfig(
+    srcDir: dir / srcDir,
     rootDir: dir,
     buildDir: dir / "build",
     outputName: "main",
     mainFile: "main.nim"
   )
-  buildProject(config)
-  echo "Build completed successfully!"
-
-proc handleCompile(file: string, output: string) =
-  let output = file.changeFileExt("nim")
-  let source = readFile(file)
-  let compiler = newCompiler(source, output)
-  let nimCode = compiler.compileToNimCode(source)
-  
-  # Записываем результат рядом с исходным файлом
-  writeFile(output, nimCode)
-  echo fmt"Compiled {file} -> {output}"
+  if buildProject(config) == true:
+    echo "\n✓ Compilation successful!"
+  else:
+    echo "\n✗ Compilation failed!"
 
 proc handleTokens(file: string) =
-  let source = readFile("test/src" / file)
+  let source = readFile(file)
   var compiler = newCompiler(source, "")
   let lexResult = compiler.tokenize()
   if not lexResult.success:
@@ -46,10 +39,11 @@ proc handleTokens(file: string) =
     echo fmt"Line {lexResult.errorLine}, column {lexResult.errorColumn}"
     return
   compiler.printTokenStatistics()
-  echo compiler.tokens
+  printTokens(compiler.tokens)
+  saveTokens(compiler.tokens)
 
 proc handleAst(file: string) =
-  let source = readFile("test/src" / file)
+  let source = readFile(file)
   var compiler = newCompiler(source, "")
   let lexResult = compiler.tokenize()
   if not lexResult.success:
@@ -66,7 +60,7 @@ proc handleAst(file: string) =
 proc main() =
   var 
     command = cmdBuild
-    inputFile = ""
+    inputSrc = ""
     outputFile = ""
     dir = getCurrentDir()
     verbose = false
@@ -95,29 +89,29 @@ proc main() =
       of "tokens": command = cmdTokens
       of "ast": command = cmdAst
       else:
-        if inputFile == "":
-          inputFile = p.key
+        if inputSrc == "":
+          inputSrc = p.key
         else:
           dir = p.key
 
   case command
   of cmdBuild:
-    handleBuild(dir)
+    handleBuild(dir, inputSrc)
   of cmdCompile:
-    if inputFile == "":
+    if inputSrc == "":
       echo "Error: Input file required for compile command"
       quit(1)
-    handleCompile(inputFile, outputFile)
+
   of cmdTokens:
-    if inputFile == "":
+    if inputSrc == "":
       echo "Error: Input file required for tokens command"
       quit(1)
-    handleTokens(inputFile)
+    handleTokens(inputSrc)
   of cmdAst:
-    if inputFile == "":
+    if inputSrc == "":
       echo "Error: Input file required for ast command"
       quit(1)
-    handleAst(inputFile)
+    handleAst(inputSrc)
 
 when isMainModule:
   main()

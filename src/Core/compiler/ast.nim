@@ -81,6 +81,17 @@ method visitPackDef*(self: AstVisitor, node: Node) {.base.} =
 method visitParam*(self: AstVisitor, node: Node) {.base.} =
   discard
 
+method visitState*(self: AstVisitor, node: Node) {.base.} = 
+  self.visit(node.stateBody)
+
+method visitStateBody*(self: AstVisitor, node: Node) {.base.} = 
+  for meth in node.stateMethods:
+    self.visit(meth)
+  for variable in node.stateVars:
+    self.visit(variable)
+  for watcher in node.stateWatchers:
+    self.visit(watcher)
+
 method visitIf*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.ifCond)
   self.visit(node.ifThen)
@@ -99,6 +110,19 @@ method visitFor*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.forRange.start)
   self.visit(node.forRange.endExpr)
   self.visit(node.forBody)
+
+method visitEach*(self: AstVisitor, node: Node) {.base.} =
+  self.visit(node.eachStart)
+  self.visit(node.eachEnd)
+  if node.eachStep != nil:
+    self.visit(node.eachStep)
+  if node.eachWhere != nil:
+    self.visit(node.eachWhere)
+  self.visit(node.eachBody)
+
+method visitWhile*(self: AstVisitor, node: Node) {.base.} =
+  self.visit(node.whileCond)
+  self.visit(node.whileBody)
 
 method visitInfinit*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.infDelay)
@@ -207,11 +231,15 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
   of nkFuncDef:           self.visitFuncDef(node)
   of nkLambdaDef:         self.visitLambdaDef(node)
   of nkPackDef:           self.visitPackDef(node)
+  of nkState:             self.visitState(node)
+  of nkStateBody:         self.visitStateBody(node)
   of nkParam:             self.visitParam(node)
   of nkIf:                self.visitIf(node)
   of nkInit:              self.visitInit(node)
   of nkFor:               self.visitFor(node)
+  of nkEach:              self.visitEach(node)
   of nkInfinit:           self.visitInfinit(node)
+  of nkWhile:             self.visitWhile(node)
   of nkRepeat:            self.visitRepeat(node)
   of nkTry:               self.visitTry(node)
   of nkEvent:             self.visitEvent(node)
@@ -327,6 +355,34 @@ method transformPackDef*(self: AstTransformer, node: Node): Node {.base.} =
   result.line = node.line
   result.column = node.column
 
+method transformState*(self: AstTransformer, node: Node): Node {.base.} =
+  let body = self.transform(node.stateBody)
+  
+  result = newNode(nkState)
+  result.stateName = node.stateName
+  result.stateBody = body
+  result.line = node.line
+  result.column = node.column
+
+method transformStateBody*(self: AstTransformer, node: Node): Node {.base.} =
+  var newMethods: seq[Node] = @[]
+  var newVars: seq[Node] = @[]
+  var newWatchers: seq[Node] = @[]
+  
+  for meth in node.stateMethods:
+    newMethods.add(self.transform(meth))
+  for variable in node.stateVars:
+    newVars.add(self.transform(variable))
+  for watcher in node.stateWatchers:
+    newWatchers.add(self.transform(watcher))
+    
+  result = newNode(nkStateBody)
+  result.stateMethods = newMethods
+  result.stateVars = newVars
+  result.stateWatchers = newWatchers
+  result.line = node.line
+  result.column = node.column
+  
 method transformParam*(self: AstTransformer, node: Node): Node {.base.} =
   result = newNode(nkParam)
   result.paramName = node.paramName
@@ -379,6 +435,33 @@ method transformFor*(self: AstTransformer, node: Node): Node {.base.} =
   result.forVar = node.forVar
   result.forRange = (start: start, inclusive: node.forRange.inclusive, endExpr: endExpr)
   result.forBody = body
+  result.line = node.line
+  result.column = node.column
+
+method transformEach*(self: AstTransformer, node: Node): Node =
+  let eachStart = self.transform(node.eachStart)
+  let eachEnd = self.transform(node.eachEnd)
+  var step = if node.eachStep != nil: self.transform(node.eachStep) else: nil
+  var where = if node.eachWhere != nil: self.transform(node.eachWhere) else: nil
+  let body = self.transform(node.eachBody)
+
+  result = newNode(nkEach)
+  result.eachVar = node.eachVar
+  result.eachStart = eachStart
+  result.eachEnd = eachEnd
+  result.eachStep = step
+  result.eachWhere = where
+  result.eachBody = body
+  result.line = node.line
+  result.column = node.column
+
+method transformWhile*(self: AstTransformer, node: Node): Node {.base.} =
+  let cond = self.transform(node.whileCond)
+  let body = self.transform(node.whileBody)
+  
+  result = newNode(nkWhile)
+  result.whileCond = cond
+  result.whileBody = body
   result.line = node.line
   result.column = node.column
 
@@ -650,11 +733,15 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
   of nkFuncDef:       return self.transformFuncDef(node)
   of nkLambdaDef:     return self.transformLambdaDef(node)
   of nkPackDef:       return self.transformPackDef(node)
+  of nkState:         return self.transformState(node)
+  of nkStateBody:     return self.transformStateBody(node)
   of nkParam:         return self.transformParam(node)
   of nkIf:            return self.transformIf(node)
   of nkInit:          return self.transformInit(node)
   of nkFor:           return self.transformFor(node)
+  of nkEach:          return self.transformEach(node)
   of nkInfinit:       return self.transformInfinit(node)
+  of nkWhile:         return self.transformWhile(node)
   of nkRepeat:        return self.transformRepeat(node)
   of nkTry:           return self.transformTry(node)
   of nkEvent:         return self.transformEvent(node)
@@ -1133,7 +1220,20 @@ proc printAST*(node: Node, indent: int = 0) =
       echo indentStr & "  Modifiers: " & node.packMods.join(", ")
     echo indentStr & "  Body:"
     printAST(node.packBody, indent + 4)
-  
+
+  of nkState:
+    echo indentStr & "State: " & node.stateName
+    echo indentStr & "  Body:"
+    printAST(node.stateBody, indent + 4)
+    
+  of nkStateBody:
+    for meth in node.stateMethods:
+      printAST(meth, indent)
+    for variable in node.stateVars:
+      printAST(variable, indent)
+    for watcher in node.stateWatchers:
+      printAST(watcher, indent)
+    
   of nkIf:
     echo indentStr & "If Statement:"
     echo indentStr & "  Condition:"
@@ -1163,7 +1263,30 @@ proc printAST*(node: Node, indent: int = 0) =
     echo indentStr & "    Inclusive: " & $node.forRange.inclusive
     echo indentStr & "  Body:"
     printAST(node.forBody, indent + 4)
-  
+
+  of nkEach:
+    echo indentStr & "Each Loop:"
+    echo indentStr & "  Variable: " & node.eachVar
+    echo indentStr & "  Start:"
+    printAST(node.eachStart, indent + 4)
+    echo indentStr & "  End:"
+    printAST(node.eachEnd, indent + 4)
+    if node.eachStep != nil:
+      echo indentStr & "  Step:"
+      printAST(node.eachStep, indent + 4)
+    if node.eachWhere != nil:
+      echo indentStr & "  Where:"
+      printAST(node.eachWhere, indent + 4)
+    echo indentStr & "  Body:"
+    printAST(node.eachBody, indent + 4)
+
+  of nkWhile:
+    echo indentStr & "While Loop:"
+    echo indentStr & "  Condition:"
+    printAST(node.whileCond, indent + 4)
+    echo indentStr & "  Body:"
+    printAST(node.whileBody, indent + 4)
+
   of nkInfinit:
     echo indentStr & "Infinit Loop:"
     echo indentStr & "  Delay:"

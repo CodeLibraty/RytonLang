@@ -19,13 +19,17 @@ type
     # Управляющие конструкции
     nkIf,             # Условный оператор
     nkFor,            # Цикл for
+    nkEach,           # Цикл each
     nkInfinit,        # Бесконечный цикл
     nkRepeat,         # Цикл с повторениями
-    nkTry,            # Блок try-elerr
+    nkTry,            # Блок try-error
     nkEvent,          # Событие
     nkImport,         # Импорт модулей
     nkOutPut,         # Оператор return
-    
+    nkState,          # Объявление состояния
+    nkStateBody,      # Тело состояния
+    nkWhile,
+
     # Выражения
     nkBinary,         # Бинарное выражение
     nkUnary,          # Унарное выражение
@@ -79,6 +83,7 @@ type
     
     of nkInit:
       initBody*: Node
+      initParams*: seq[Node]
 
     of nkFuncDef:
       funcName*: string
@@ -101,7 +106,16 @@ type
       packParents*: seq[string]
       packMods*: seq[string]
       packBody*: Node
-    
+
+    of nkState:
+      stateName*: string
+      stateBody*: Node
+
+    of nkStateBody:
+      stateMethods*: seq[Node]    # Методы состояния
+      stateVars*: seq[Node]       # Переменные состояния
+      stateWatchers*: seq[Node]   # Watch блоки
+
     of nkParam:
       paramName*: string
       paramType*: string
@@ -117,7 +131,19 @@ type
       forVar*: string
       forRange*: tuple[start: Node, inclusive: bool, endExpr: Node]
       forBody*: Node
-    
+
+    of nkEach:
+      eachVar*:     string        # Имя переменной цикла
+      eachStart*:   Node          # Начальное выражение
+      eachEnd*:     Node          # Конечное выражение  
+      eachStep*:    Node          # Шаг (может быть nil)
+      eachWhere*:   Node          # Условие where (может быть nil)
+      eachBody*:    Node          # Тело цикла
+
+    of nkWhile:
+      whileCond*: Node
+      whileBody*: Node
+
     of nkInfinit:
       infDelay*: Node
       infBody*: Node
@@ -363,7 +389,7 @@ proc primary(p: Parser): Node =
         call.callFunc = expr
         call.callArgs = args
         expr = call
-        
+
       # Срезы массивов arr[1..5]
       elif p.match(tkDotDot, tkDotDotDot):
         let inclusive = p.previous().kind == tkDotDot
@@ -424,6 +450,7 @@ proc finishCall(p: Parser, callee: Node): Node =
     return nil
     
   var args: seq[Node] = @[]
+
   if not p.check(tkRParen):
     let arg = p.expression()
     if arg != nil:
@@ -432,9 +459,8 @@ proc finishCall(p: Parser, callee: Node): Node =
       let nextArg = p.expression() 
       if nextArg != nil:
         args.add(nextArg)
-  
   discard p.consume(tkRParen, "Expected ')' after arguments")
-  
+
   result = newNode(nkCall)
   result.callFunc = callee
   result.callArgs = args
@@ -514,20 +540,27 @@ proc comparison(p: Parser): Node =
     let operator = p.previous()
     let right = p.term()
     
-    let binary = newNode(nkBinary)
-    case operator.kind
-    of tkLt: binary.binOp = "<"
-    of tkLe: binary.binOp = "<="
-    of tkGt: binary.binOp = ">"
-    of tkGe: binary.binOp = ">="
-    else: binary.binOp = ""
-    
-    binary.binLeft = expr
-    binary.binRight = right
-    binary.line = operator.line
-    binary.column = operator.column
-    expr = binary
-  
+    # Проверяем следующий токен
+    if p.check(tkLParen):
+      # Если это вызов функции, обрабатываем его отдельно
+      let funcCall = p.finishCall(right)
+      expr = funcCall
+    else:
+      # Иначе создаем бинарное выражение сравнения
+      let binary = newNode(nkBinary)
+      case operator.kind
+      of tkLt: binary.binOp = "<"
+      of tkLe: binary.binOp = "<="
+      of tkGt: binary.binOp = ">"
+      of tkGe: binary.binOp = ">="
+      else: binary.binOp = ""
+      
+      binary.binLeft = expr
+      binary.binRight = right
+      binary.line = operator.line
+      binary.column = operator.column
+      expr = binary
+      
   return expr
 
 proc equality(p: Parser): Node =
@@ -594,21 +627,11 @@ proc assignment(p: Parser): Node =
     typeCheck.checkType = typeName
 
     if p.match(tkTypeColon):
-      # Здесь начинаем собирать многострочный код
-      var codeBuffer = ""
-      var braceLevel = 0
-      
-      while not p.check(tkTypeEnd) and not p.isAtEnd():
-        let token = p.advance()
-        # Собираем все токены в строку кода
-        codeBuffer.add(token.lexeme)
-        if token.kind == tkLBrace: inc braceLevel
-        elif token.kind == tkRBrace: dec braceLevel
-        
-      typeCheck.checkFunc = codeBuffer
-
-    discard p.consume(tkTypeEnd, "Expected '>'")
-    typeProps.add(typeCheck)
+    
+      let code = p.consume(tkTypeFunc, "Expected type check code").lexeme
+      typeCheck.checkFunc = code
+      discard p.consume(tkTypeEnd, "Expected '>'")
+      typeProps.add(typeCheck)
 
   # Стандартная проверка def/val если нет типа
   declType = if p.match(tkDef):   dtDef
@@ -624,6 +647,8 @@ proc assignment(p: Parser): Node =
       
       let value = if p.check(tkLambda):
         p.lambdaDeclaration()
+      elif p.check(tkIf):
+        p.ifStatement()
       else:
         p.assignment()
 
@@ -748,11 +773,64 @@ proc importStatement(p: Parser): Node =
 
 proc parseInitBlock(p: Parser): Node =
   discard p.consume(tkInit, "Expected 'init' keyword")
-  
+
+  var params: seq[Node] = @[]
+  if p.match(tkLParen):
+    # Пропускаем возможные переносы строк перед первым параметром
+    while p.match(tkNewline): discard
+    
+    if not p.check(tkRParen):
+      # Первый параметр
+      params.add(p.parameter())
+      
+      # Остальные параметры
+      while p.match(tkComma):
+        # Пропускаем возможные переносы строк после запятой
+        while p.match(tkNewline): discard
+        
+        if not p.check(tkRParen):  # Проверяем, что не достигли конца списка
+          params.add(p.parameter())
+    
+    # Пропускаем возможные переносы строк перед закрывающей скобкой
+    while p.match(tkNewline): discard
+    
+    discard p.consume(tkRParen, "Expected ')' after parameters")
+
   result = newNode(nkInit)
+  result.initParams = params
   result.initBody = p.parseBlock()
   result.line = p.previous().line
   result.column = p.previous().column
+
+proc parseStateBody(p: Parser): Node =
+  result = newNode(nkStateBody)
+  result.stateMethods = @[]
+  result.stateVars = @[]
+  result.stateWatchers = @[]
+  
+  discard p.consume(tkLBrace, "Expected '{' after state name")
+  
+  while not p.check(tkRBrace) and not p.isAtEnd():
+    if p.check(tkFunc):
+      result.stateMethods.add(p.functionDeclaration())
+    elif p.check(tkVal) or p.check(tkDef):
+      result.stateVars.add(p.assignment())
+      
+  discard p.consume(tkRBrace, "Expected '}' after state body")
+
+proc parseState(p: Parser): Node =
+  discard p.consume(tkState, "Expected 'state' keyword")
+  let name = p.consume(tkIdentifier, "Expected state name").lexeme
+  
+  # Добавим отладочный вывод
+  echo "Parsing state: ", name
+  
+  result = newNode(nkState)
+  result.stateName = name
+  result.stateBody = p.parseBlock()  # Используем существующий parseBlock
+  
+  echo "Finished parsing state: ", name
+  return result
 
 proc forStatement(p: Parser): Node =
   let token = p.consume(tkFor, "Expected 'for' keyword")
@@ -789,6 +867,55 @@ proc forStatement(p: Parser): Node =
   result.line = token.line
   result.column = token.column
   return result
+
+proc eachStatement(p: Parser): Node =
+  let token = p.consume(tkEach, "Expected 'each' keyword")
+  
+  # Переменная цикла
+  let varName = p.consume(tkIdentifier, "Expected variable name after 'each'").lexeme
+  
+  # from
+  discard p.consume(tkFrom, "Expected 'from' after variable")
+  let startExpr = p.expression()
+  
+  # to
+  discard p.consume(tkTo, "Expected 'to' after start expression")
+  let endExpr = p.expression()
+  
+  # Опциональный step
+  var stepExpr: Node = nil
+  if p.match(tkStep):
+    stepExpr = p.expression()
+    
+  # Опциональное условие where
+  var whereExpr: Node = nil
+  if p.match(tkWhere):
+    whereExpr = p.expression()
+    
+  # Блок кода
+  let body = p.parseBlock()
+  
+  # Создаем узел Each
+  result = newNode(nkEach)
+  result.eachVar = varName
+  result.eachStart = startExpr
+  result.eachEnd = endExpr
+  result.eachStep = stepExpr
+  result.eachWhere = whereExpr
+  result.eachBody = body
+  result.line = token.line
+  result.column = token.column
+
+proc whileStatement(p: Parser): Node =
+  let token = p.consume(tkWhile, "Expected 'while' keyword")
+  let condition = p.expression()
+  let body = p.parseBlock()
+  
+  result = newNode(nkWhile)
+  result.whileCond = condition
+  result.whileBody = body
+  result.line = token.line
+  result.column = token.column
 
 proc infinitStatement(p: Parser): Node =
   let token = p.consume(tkInfinit, "Expected 'infinit' keyword")
@@ -861,26 +988,26 @@ proc returnStatement(p: Parser): Node =
 
 proc ifStatement(p: Parser): Node =
   let token = p.consume(tkIf, "Expected 'if' keyword")
-  
-  # Условие
   let condition = p.expression()
-  
-  # Блок кода для if
   let thenBranch = p.parseBlock()
   
   var elifBranches: seq[tuple[cond: Node, body: Node]] = @[]
   var elseBranch: Node = nil
-  
-  # Обработка elif блоков
-  while p.match(tkElif):
+
+  while p.check(tkNewline): discard p.advance()
+
+  while p.check(tkElif):
+    discard p.consume(tkElif, "Expected 'elif'")
     let elifCond = p.expression()
     let elifBody = p.parseBlock()
     elifBranches.add((cond: elifCond, body: elifBody))
-  
-  # Обработка else блока
-  if p.match(tkElse):
+
+  while p.check(tkNewline): discard p.advance()
+
+  if p.check(tkElse):
+    discard p.consume(tkElse, "Expected 'else'")
     elseBranch = p.parseBlock()
-  
+
   result = newNode(nkIf)
   result.ifCond = condition
   result.ifThen = thenBranch
@@ -1160,9 +1287,9 @@ proc packDeclaration(p: Parser): Node =
 
   # Родительские классы (опционально)
   var parents: seq[string] = @[]
-  if p.match(tkColonColon):
+  if p.match(tkLeftArrow):
     # Первый родитель
-    parents.add(p.consume(tkIdentifier, "Expected parent class name after '::'").lexeme)
+    parents.add(p.consume(tkIdentifier, "Expected parent class name after '<-'").lexeme)
     
     # Остальные родители
     while p.match(tkPipe):
@@ -1197,43 +1324,54 @@ proc expressionStatement(p: Parser): Node =
 proc parsePackBody(p: Parser): Node =
   var statements: seq[Node] = @[]
   
-  discard p.consume(tkLBrace, "Expected '{'")
-  
-  while not p.check(tkRBrace) and not p.isAtEnd():
-    echo "Current token: ", p.peek().lexeme
-    if p.check(tkFunc):
-      let methodDef = p.methodDeclaration()
-      echo "Adding method kind: ", methodDef.kind
-      statements.add(methodDef)
-    elif p.check(tkInit):
-      let initDef = p.parseInitBlock()
-      echo "Adding init kind: ", initDef.kind
-      statements.add(initDef)
-    else:
-      let stmt = p.statement()
-      if stmt != nil:
-        echo "Adding statement kind: ", stmt.kind
-        statements.add(stmt)
-
-  discard p.consume(tkRBrace, "Expected '}'")
+  if p.match(tkFatArrow):  # => для однострочного блока
+    let stmt = p.statement()
+    if stmt != nil:
+      statements.add(stmt)
+  else:
+    discard p.consume(tkLBrace, "Expected '{' before block")
+    while not p.check(tkRBrace) and not p.isAtEnd():
+      echo "Current token: ", p.peek().lexeme
+      if p.check(tkFunc):
+        let methodDef = p.methodDeclaration()
+        echo "Adding method kind: ", methodDef.kind
+        statements.add(methodDef)
+      elif p.check(tkInit):
+        let initDef = p.parseInitBlock()
+        echo "Adding init kind: ", initDef.kind
+        statements.add(initDef)
+      elif p.check(tkState):
+        let stateDef = p.parseState()
+        echo "Adding state kind: ", stateDef.kind
+        statements.add(stateDef)
+      else:
+        let stmt = p.statement()
+        if stmt != nil:
+          echo "Adding statement kind: ", stmt.kind
+          statements.add(stmt)
+    discard p.consume(tkRBrace, "Expected '}' after block")
 
   result = newNode(nkBlock)
   result.blockStmts = statements
   echo "Final statements count: ", statements.len
 
 proc parseBlock(p: Parser): Node =
+  result = newNode(nkBlock)
+  result.blockStmts = @[]
+
+  if p.match(tkFatArrow):  # => для однострочного блока
+    let stmt = p.statement()
+    if stmt != nil:
+      result.blockStmts.add(stmt)
+    return result
+
+  # Обычный блок с {}
   discard p.consume(tkLBrace, "Expected '{' before block")
-  
-  var statements: seq[Node] = @[]
   while not p.check(tkRBrace) and not p.isAtEnd():
     let stmt = p.statement()
     if stmt != nil:
-      statements.add(stmt)
-  
+      result.blockStmts.add(stmt)
   discard p.consume(tkRBrace, "Expected '}' after block")
-  
-  result = newNode(nkBlock)
-  result.blockStmts = statements
   return result
 
 proc statement(p: Parser): Node =
@@ -1255,10 +1393,16 @@ proc statement(p: Parser): Node =
   # Обработка циклов
   if p.check(tkFor):
     return p.forStatement()
-  
+
+  if p.check(tkEach):
+    return p.eachStatement()
+
   if p.check(tkInfinit):
     return p.infinitStatement()
-  
+
+  if p.check(tkWhile):
+    return p.whileStatement()
+
   if p.check(tkRepeat):
     return p.repeatStatement()
   
@@ -1438,6 +1582,10 @@ proc `$`*(node: Node, indent: int = 0): string =
     result &= indentStr & "  Function:\n"
     result &= `$`(node.callFunc, indent + 4) & "\n"
     result &= indentStr & "  Arguments:\n"
+    result &= "("
+    for arg in node.callArgs:
+      result &= $arg & "\n" & " ".repeat(indent + 4)
+    result &= ")"
     for arg in node.callArgs:
       result &= `$`(arg, indent + 4) & "\n"
   

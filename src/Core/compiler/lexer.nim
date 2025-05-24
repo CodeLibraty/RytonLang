@@ -14,21 +14,24 @@ type
     tkFunc, tkPack, tkEvent, tkInit, tkMacro, tkIf, tkElif, tkElse
     tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkError, tkSwitch, tkWith
     tkLazy, tkData, tkTable, tkPrivate, tkSlots, tkImport, tkModule,
-    tkNoop, tkOutPut, tkLambda
+    tkNoop, tkOutPut, tkLambda, tkEach, tkFrom, tkTo, tkStep, tkWhere,
+    tkState, tkWhile
     
     # Операторы
     tkPlus, tkMinus, tkMul, tkDiv, tkAssign, tkEq, tkNe, tkLt, tkGt, tkLe, tkGe
-    tkPlusEq, tkMinusEq, tkMulEq, tkDivEq, tkPipe, tkAnd, tkOr, tkArrow, tkFatArrow
+    tkPlusEq, tkMinusEq, tkMulEq, tkDivEq, tkPipe, tkAnd, tkOr, tkRightArrow, tkLeftArrow,
     tkDot, tkComma, tkColon, tkColonColon, tkSemicolon, tkQuestion, tkBang, tkPercent,
     tkColonEq, tkTrue, tkFalse, tkDotDot, tkDotDotDot, tkRetType, tkModStart, tkModEnd,
-    tkPtr, tkRef, tkBar, tkDef, tkVal
+    tkPtr, tkRef, tkBar, tkDef, tkVal, tkFatArrow
 
     # Синтаксис свойств
-    tkTypeCheck,    # <
-    tkTypeEnd,      # >
-    tkTypeColon,    # :
-    tkTypeFunc,     # Имя функции в проверке типа
-    
+    tkTypeCheck,     # <
+    tkTypeEnd,       # >
+    tkTypeColon,     # :
+    tkTypeFunc,      # Имя функции в проверке типа
+    tkBacktick,      # `
+    tkTypeDirective  # Токен для директивы внутри обратных кавычек
+
     # Скобки и разделители
     tkLParen, tkRParen, tkLBrace, tkRBrace, tkLBracket, tkRBracket
     
@@ -67,6 +70,7 @@ proc newLexer*(source: string): Lexer =
       "func":       tkFunc,
       "lambda":     tkLambda,
       "pack":       tkPack,
+      "state":      tkState,
       "event":      tkEvent,
       "init":       tkInit,
       "macro":      tkMacro,
@@ -88,7 +92,13 @@ proc newLexer*(source: string): Lexer =
       "table":      tkTable,
       "private":    tkPrivate,
       "slots":      tkSlots,
+      "while":      tkWhile,
       "output":     tkOutPut,
+      "each":       tkEach,
+      "from":       tkFrom,
+      "to":         tkTo,
+      "step":       tkStep,
+      "where":      tkWhere,
       "true":       tkTrue,
       "false":      tkFalse,
       "noop":       tkNoop,
@@ -225,7 +235,20 @@ proc scanIdentifier(self: Lexer) =
   of lcTypeCheck:
     # В контексте типовой проверки все идентификаторы 
     # обрабатываются как часть кода проверки
-    self.addToken(tkIdentifier)
+    if self.match('{'):
+      var codeBuffer = ""
+      var braceLevel = 1
+      while braceLevel > 0:
+        let c = self.advance()
+        if c == '{': inc braceLevel
+        elif c == '}':
+          dec braceLevel
+          if braceLevel == 0: break
+        codeBuffer.add(c)
+      self.addToken(tkTypeFunc, codeBuffer)
+      self.context = lcNormal
+    else:
+      self.addToken(tkIdentifier)
 
   of lcImport:
     # Обрабатываем пути импорта как единые токены
@@ -335,11 +358,29 @@ proc scanToken(self: Lexer) =
       else: self.addToken(tkAssign)
       self.context = lcExpression
 
+    of '`':
+      # Начало директивы
+      self.start = self.current
+      while self.peek() != '`' and not self.isAtEnd():
+        discard self.advance()
+      
+      if self.isAtEnd():
+        self.addToken(tkUnknown)
+        return
+      
+      let directive = self.source[self.start..<self.current]
+      discard self.advance() # Потребляем закрывающую обратную кавычку
+      self.addToken(tkTypeDirective, directive)
+
     of '<': 
-      if self.peek().isAlphaAscii():
+      if self.match('='): self.addToken(tkLe) 
+      elif self.match('-'): self.addToken(tkLeftArrow) 
+      elif self.match('/'): self.scanRytonComment()
+      elif self.peek().isAlphaAscii():
         # Токен для <
         self.start = self.current - 1
         self.addToken(tkTypeCheck)
+        self.context = lcTypeCheck  # Переключаем контекст
         
         # Токен для типа
         self.start = self.current
@@ -352,27 +393,34 @@ proc scanToken(self: Lexer) =
           self.start = self.current - 1
           self.addToken(tkTypeColon)
           
-          # Переключаемся в контекст типовой проверки
-          self.context = lcTypeCheck
+          # Пропускаем пробелы до {
+          while self.peek().isSpaceAscii: 
+            discard self.advance()
           
-          # Собираем код проверки до '>'
-          var codeBuffer = ""
-          var braceLevel = 0
-          
-          while not (self.peek() == '>' and braceLevel == 0) and not self.isAtEnd():
-            if self.peek() == '{': inc braceLevel
-            elif self.peek() == '}': dec braceLevel
-            codeBuffer.add(self.advance())
-          
-          # Добавляем собранный код как один токен
-          self.addToken(tkTypeFunc, codeBuffer.strip())
+          if self.peek() == '{':
+            discard self.advance() # Пропускаем {
+            self.start = self.current
+            var braceLevel = 1
+            
+            while braceLevel > 0:
+              if self.peek() == '{': inc braceLevel
+              elif self.peek() == '}':
+                dec braceLevel
+                if braceLevel == 0: break
+              discard self.advance()
+            
+            # Добавляем код без скобок
+            let code = self.source[self.start..<self.current]
+            self.addToken(tkTypeFunc, code)
+            discard self.advance() # Пропускаем }
           
           if self.match('>'):
-            # Токен для >
             self.start = self.current - 1
             self.addToken(tkTypeEnd)
-            
-          self.context = lcNormal
+            self.context = lcNormal
+      else:
+        self.addToken(tkLt)  # просто <
+        self.context = lcExpression
 
     of '>': 
       if self.match('='): self.addToken(tkGe)
@@ -488,8 +536,14 @@ proc tokenize*(source: string): seq[Token] =
   return lexer.scanTokens()
 
 proc `$`*(token: Token): string =
-  fmt"{token.kind}('{token.lexeme}' at {token.line}:{token.column})"
+  if token.kind == tkNewline:
+    fmt"{token.kind}('\n' at {token.line}:{token.column})"
+  else:
+    fmt"{token.kind}('{token.lexeme}' at {token.line}:{token.column})"
 
-proc printTokens*(tokens: seq[Token]) =
+proc lexerTokens*(tokens: seq[Token]): string =
   for token in tokens:
-    echo token
+    result &= fmt"{token}" & "\n"
+  
+  return result
+

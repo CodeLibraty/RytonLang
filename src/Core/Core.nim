@@ -1,9 +1,20 @@
-import std/[strutils, strformat, tables]
+import std/[strutils, strformat, tables, terminal]
 import compiler/lexer
 import compiler/parser
 import compiler/codegen
 import compiler/ast
 import analyzer/analyzer
+
+const
+  FgBlack*   = "\e[30m"
+  FgRed*     = "\e[31m"
+  FgGreen*   = "\e[32m"
+  FgYellow*  = "\e[33m"
+  FgBlue*    = "\e[34m"
+  FgMagenta* = "\e[35m"
+  FgCyan*    = "\e[36m"
+  FgWhite*   = "\e[37m"
+  Reset*     = "\e[0m"
 
 type
   CompilerPhase* = enum
@@ -135,6 +146,18 @@ proc printKeywordStatistics*(self: RytonCompiler) =
   for keyword, count in keywords.pairs:
     echo fmt"{keyword:<10}: {count:4}"
 
+proc printTokens*(tokens: seq[Token]) =
+  ## Выводит токены в консоль
+  echo "Tokens: "
+  echo lexerTokens(tokens)
+
+proc saveTokens*(tokens: seq[Token]) =
+  ## Выводит токены в консоль
+  echo "Tokens saved to: " 
+  let textTokens = lexerTokens(tokens)
+
+  writeFile("tokens.txt", textTokens)
+
 proc loadFile*(filePath: string): string =
   ## Загружает содержимое файла
   try:
@@ -251,23 +274,51 @@ proc generateCode*(self: RytonCompiler): CompilationResult =
       phase: phCodeGeneration
     )
 
+proc formatError(errorType: string, message: string, errorLine: int, errorColumn: int): string =
+  let width = terminal.terminalWidth()
+  let line = "─".repeat(width - 1)
+  result = fmt"""
+├─{FgRed} ⚠ {errorType} {Reset}{"─".repeat(width - (6 + errorType.len))}
+│ {message}
+├{line}
+│ Line {errorLine}, Column {errorColumn}
+│ 
+│ ↑
+╰{line}"""
+
 # Добавляем функцию для полной компиляции
 proc compile*(self: RytonCompiler): CompilationResult =
   ## Выполняет полный цикл компиляции: лексический анализ, парсинг, генерация кода
   
   # Лексический анализ
+  echo fmt"╭─────{FgGreen} Starting compilation... {Reset}"
+  echo fmt"├──{FgYellow} Starting lexical analysis... {Reset}"
   let lexResult = self.tokenize()
   if not lexResult.success:
-    return lexResult
+    echo fmt"├─{FgRed} ✗ Lexical analysis failed. {Reset}"
+    echo formatError(fmt"LexerError", lexResult.errorMessage, lexResult.errorLine, lexResult.errorColumn)
+
+  echo fmt"├─{FgGreen} ✓ Lexical analysis completed successfully. {Reset}"
   
   # Парсинг
+  echo fmt"├──{FgYellow} Starting parsing... {Reset}"
   let parseResult = self.parse()
   if not parseResult.success:
-    return parseResult
+    echo fmt"├─{FgRed} ✗ Parsing failed. {Reset}"
+    echo formatError(fmt"ParserError", parseResult.errorMessage, parseResult.errorLine, parseResult.errorColumn)
+
+  echo fmt"├─{FgGreen} ✓ Parsing completed successfully {Reset}"
   
   # Генерация кода
-  return self.generateCode()
+  echo fmt"├──{FgYellow} Starting code generation... {Reset}"
+  let resultCode = self.generateCode()
+  if not resultCode.success:
+    echo fmt"├─{FgRed} ✗ Code generation failed. {Reset}"
+    echo formatError(fmt"CodegenError", resultCode.errorMessage, resultCode.errorLine, resultCode.errorColumn)
+    return resultCode
+  echo fmt"├─{FgGreen} ✓ Code generation completed successfully. {Reset}"
 
+  return resultCode
 
 proc compileToNimCode*(self: RytonCompiler, rytonCode: string): string =
   self.sourceCode = rytonCode

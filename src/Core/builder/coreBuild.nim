@@ -1,4 +1,4 @@
-import scanner, sourceCompile, linker
+import scanner, sourceCompile, linker, strformat
 import ../Core
 import std/[strutils, os, sequtils]
 
@@ -9,6 +9,7 @@ type
     outputDir*:  string
 
   ProjectConfig* = object
+    srcDir*:     string     # Директория с исходными файлами
     rootDir*:    string     # Корневая директория проекта
     buildDir*:   string     # Директория для промежуточных файлов
     outputName*: string     # Имя выходного файла
@@ -66,14 +67,14 @@ proc copySourceDir(src, dst: string) =
       # Создаём символическую ссылку для ресурсных каталогов
       createSymlink(src / dirName, dst / dirName)
 
-proc buildProject*(config: ProjectConfig) =
-  echo "Building Ryton files in: ", config.rootDir
-  
+proc buildProject*(config: ProjectConfig):bool =
+  echo "Building Ryton files in: ", config.rootDir / config.srcDir
+  var success: bool = true
   # Ищем все .ry файлы рекурсивно
   for ryFile in walkDirRec(config.rootDir, {pcFile}):
     if ryFile.endsWith(".ry"):
       let nimFile = ryFile.changeFileExt("nim")
-      echo "Compiling: ", ryFile
+      echo fmt"Compiling: {FgGreen}{extractFilename(ryFile)}{Reset} -> {FgGreen}{extractFilename(nimFile)}{Reset}"
       
       # Читаем исходный код
       let content = readFile(ryFile)
@@ -83,4 +84,12 @@ proc buildProject*(config: ProjectConfig) =
       let nimCode = compiler.compileToNimCode(content)
       
       # Записываем результат рядом с исходным файлом
-      writeFile(nimFile, nimCode)
+      try:
+        writeFile(nimFile, nimCode)
+        echo fmt"╰─────{FgGreen} ✓ file {Reset}{extractFilename(nimFile)}{FgGreen} successfully created! {Reset}"
+      except: 
+        echo fmt"╰─────{FgGreen} ✗ Error writing Nim to file: {Reset}{extractFilename(nimFile)}{FgGreen} :( {Reset}"
+        success = false
+
+  return success
+

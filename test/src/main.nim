@@ -1,33 +1,45 @@
+import times
 import strformat
 import strutils
 import classes
 import std.Core.stdTypes
 import std.Core.stdModifiers
-import times
-class MainPack:
-  method calcs*(this: MainPack, n: Int): Float {.trace, metrics.} =
-    if n == nil: raise newException(ValueError, "n cannot be nil")
-    
-    if n = 1:
-      echo(n)
-    let myFunc = # Unsupported expression type: nkLambdaDef
-    var result = # Unsupported expression type: nkLambdaDef
-    var myfunc = # Unsupported expression type: nkLambdaDef
-    var q = (n / 2.8)
-    if not isType(q, Float):
-      echo("this is a float")
-      q = float(q)
-      sas = 1.2
+import std.Core.stdFunctions
+while True:
+  print("Hello World!")
+while 1 == 18:
+  print("Я хочу пиццы")
 
-
-    var pq = (q / 1.9)
-    if not isType(pq, Float):
-      echao
-
-
-    var t = (s * 10)
-    result = s
-    if result == nil: raise newException(ValueError, "Cannot return nil from non-optional function")
-    return result
+class Simple:
+  method simple*() =
+    if name:
+      if name:
+        print("Simple nahuy")
   
-echo(calc(10))
+
+class Package:
+  method myFunction*(name: String) =
+    print("Hello World!", name)
+  
+  method Main*() =
+    print("HI! I Ryton App")
+    var name = input("Enter your name: ")
+    if not isType(name, String):      
+      print("wtf? enter youre name as a string!")
+      
+
+    pause(1000)
+    print("Hello ", name, "!")
+    var age = toInt(input("Enter your age: "))
+    pause(1000)
+    if age < 18:
+      print("You are not old enough to enter this site!")
+    elif age > 18:
+      print("You are old enough to enter this site!")
+    else:
+      print("You old!")
+    print("You are ", age)
+  
+var package = mysd.Package(sas, 10, "kdkd", [1, 2, 3])
+package.myFunction("sas")
+package.Main()
