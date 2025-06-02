@@ -3,7 +3,7 @@ import compiler/lexer
 import compiler/parser
 import compiler/codegen
 import compiler/ast
-import analyzer/analyzer
+import analyzer/semantic
 
 const
   FgBlack*   = "\e[30m"
@@ -207,6 +207,42 @@ proc parse*(self: RytonCompiler): CompilationResult =
       phase: phParsing
     )
 
+proc semanticAnalysis*(self: RytonCompiler): CompilationResult =
+  try:
+    if self.ast == nil:
+      let parseResult = self.parse()
+      if not parseResult.success:
+        return parseResult
+    
+    let analyzer = newSemanticAnalyzer()
+    discard analyzer.analyze(self.ast)
+    
+    # if self.verbose:
+    #   analyzer.printErrors()
+    
+    if analyzer.hasErrors():
+      # Выводим первую ошибку для диагностики
+      let firstError = analyzer.errors[0]
+      return CompilationResult(
+        success: false,
+        errorMessage: firstError.message,
+        errorLine: firstError.line,
+        errorColumn: firstError.column,
+        phase: phSemanticAnalysis
+      )
+    
+    return CompilationResult(
+      success: true,
+      phase: phSemanticAnalysis
+    )
+  except Exception as e:
+    return CompilationResult(
+      success: false,
+      errorMessage: fmt"Semantic analyzer crashed: {e.msg}",
+      errorLine: 0,
+      errorColumn: 0,
+      phase: phSemanticAnalysis
+    )
 
 # Добавляем функцию для вывода AST
 proc dumpAST*(self: RytonCompiler, filePath: string = "") =
@@ -308,6 +344,15 @@ proc compile*(self: RytonCompiler): CompilationResult =
     echo formatError(fmt"ParserError", parseResult.errorMessage, parseResult.errorLine, parseResult.errorColumn)
 
   echo fmt"├─{FgGreen} ✓ Parsing completed successfully {Reset}"
+
+  # Семантический анализ
+  echo fmt"├──{FgYellow} Starting semantic analysis... {Reset}"
+  let semanticResult = self.semanticAnalysis()
+  if not semanticResult.success:
+    echo fmt"├─{FgRed} ✗ Semantic analysis failed. {Reset}"
+    echo formatError(fmt"SemanticError", semanticResult.errorMessage, semanticResult.errorLine, semanticResult.errorColumn)
+    #return semanticResult
+  echo fmt"├─{FgGreen} ✓ Semantic analysis completed successfully {Reset}"
   
   # Генерация кода
   echo fmt"├──{FgYellow} Starting code generation... {Reset}"

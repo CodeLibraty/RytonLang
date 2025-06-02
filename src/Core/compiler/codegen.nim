@@ -1,4 +1,4 @@
-import std/[strutils, strformat, tables, sets]
+import std/[strutils, strformat, tables, sets, times]
 import parser
 
 type
@@ -11,6 +11,9 @@ type
     currentFuncReturnModifier: char
     currentLambdaReturnModifier: char
     inVar: bool
+    currentFile*: string
+    currentNimLine*: int
+    rytonVersion*: string
 
 proc newCodeGenerator*(): CodeGenerator =
   result = CodeGenerator(
@@ -21,14 +24,31 @@ proc newCodeGenerator*(): CodeGenerator =
     module_mapping: initTable[string, string](),
     currentFuncReturnModifier: '\0',
     currentLambdaReturnModifier: '\0',
-    inVar: false
+    inVar: false,
+    currentFile: "main.ry",
+    currentNimLine: 1,
+    rytonVersion: "0.2.4"
   )
 
 proc indent(self: CodeGenerator): string =
   return "  ".repeat(self.indentLevel)
 
-proc emitLine(self: var CodeGenerator, code: string = "") =
+proc emitLine(self: var CodeGenerator, code: string = "", 
+              node: Node = nil, nodeType: string = "", 
+              status: string = "ok", extra: string = "") =
+  
+  # Если переданы параметры для трассировки - добавляем комментарий
+  if node != nil and nodeType.len > 0:
+    var comment = fmt"# ryton:{self.currentFile}:{node.line}:{node.column}|node:{nodeType}|status:{status}"
+    if extra.len > 0:
+      comment.add(fmt"|{extra}")
+    
+    self.output.add(self.indent() & comment & "\n")
+    inc(self.currentNimLine)
+  
+  # Генерируем основную строку кода
   self.output.add(self.indent() & code & "\n")
+  inc(self.currentNimLine)
 
 proc increaseIndent(self: var CodeGenerator) =
   self.indentLevel += 1
@@ -36,6 +56,14 @@ proc increaseIndent(self: var CodeGenerator) =
 proc decreaseIndent(self: var CodeGenerator) =
   if self.indentLevel > 0:
     self.indentLevel -= 1
+
+proc emitHeaderComment(self: var CodeGenerator) =
+  ## Генерирует заголовочный комментарий файла
+  self.output.add(fmt"# Ryton Compiler : v{self.rytonVersion}" & "\n")
+  self.output.add(fmt"# Generated from: {self.currentFile}" & "\n")
+  self.output.add(fmt"# Timestamp: {now()}" & "\n")
+  self.output.add("\n")
+  self.currentNimLine += 4
 
 proc addImport(self: var CodeGenerator, moduleName: string) =
   self.importedModules.incl(moduleName)
@@ -234,261 +262,118 @@ proc generateExpression(self: var CodeGenerator, node: Node): string =
     return fmt"# Unsupported expression type: {node.kind}"
 
 # Statement generation
-proc generateLambdaDeclaration(self: var CodeGenerator, node: Node) =
-  var params: seq[string] = @[]
+proc processParameters(self: var CodeGenerator, params: seq[Node]): tuple[paramStrings: seq[string], nilChecks: seq[string]] =
+  var paramStrings: seq[string] = @[]
   var nilChecks: seq[string] = @[]
 
-  # Process parameters
-  for param in node.lambdaParams:
+  for param in params:
     var paramStr = param.paramName
     if param.paramType.len > 0:
       paramStr.add(": ")
 
-      # Обрабатываем модификаторы типов
       case param.paramTypeModifier
       of '!':
-        # Строгий тип - добавляем проверку не-nil
         paramStr.add(param.paramType)
-        # Добавим код проверки в начало функции
         nilChecks.add(fmt"if {param.paramName} == nil: raise newException(ValueError, ""{param.paramName} cannot be nil"")")
       of '?':
-        # Опциональный тип - используем Option[T]
         self.addImport("options")
         paramStr.add("Option[" & param.paramType & "]")
       else:
-        # Обычный тип
         paramStr.add(param.paramType)
 
-    params.add(paramStr)
+    paramStrings.add(paramStr)
 
-  # Handle return type
-  var returnType = ""
-  if node.lambdaRetType.len > 0:
-    # Сохраняем модификатор возвращаемого типа для использования в generateReturnStatement
-    self.currentLambdaReturnModifier = node.lambdaRetTypeModifier
-    # Обрабатываем модификатор возвращаемого типа
-    case node.lambdaRetTypeModifier
-    of '?':
-      self.addImport("options")
-      returnType = ": Option[" & node.lambdaRetType & "]"
-    of '!':
-      returnType = ": " & node.lambdaRetType
-      # Добавим проверку результата перед возвратом
-    else:
-      returnType = ": " & node.lambdaRetType
+  return (paramStrings, nilChecks)
 
-  # Handle modifiers
-  var modifiers = ""
-  if node.lambdaMods.len > 0:
-    modifiers = " {." & node.lambdaMods.join(", ") & ".}"
+proc processReturnType(self: var CodeGenerator, retType: string, retTypeModifier: char): string =
+  if retType.len == 0:
+    return ""
 
-  # Generate function signature
-  let paramsStr = params.join(", ")
-  self.emitLine(fmt"proc({paramsStr}){returnType}{modifiers} =")
+  case retTypeModifier
+  of '?':
+    self.addImport("options")
+    return ": Option[" & retType & "]"
+  of '!':
+    return ": " & retType
+  else:
+    return ": " & retType
 
-  # Generate function body
-  self.increaseIndent()
-  # Вставляем проверки в начало тела функции
+proc processModifiers(modifiers: seq[string]): string =
+  if modifiers.len > 0:
+    return " {." & modifiers.join(", ") & ".}"
+  return ""
+
+proc emitNilChecks(self: var CodeGenerator, nilChecks: seq[string]) =
   for check in nilChecks:
     self.emitLine(check)
   if nilChecks.len > 0:
-    self.emitLine("") # Пустая строка после проверок
+    self.emitLine("")
 
+proc generateLambdaDeclaration(self: var CodeGenerator, node: Node) =
+  let (paramStrings, nilChecks) = self.processParameters(node.lambdaParams)
+  let returnType = self.processReturnType(node.lambdaRetType, node.lambdaRetTypeModifier)
+  let modifiers = processModifiers(node.lambdaMods)
+
+  self.currentLambdaReturnModifier = node.lambdaRetTypeModifier
+  
+  let paramsStr = paramStrings.join(", ")
+  var saveIndent = self.indentLevel
+  self.indentLevel = 0
+  self.emitLine(fmt"proc({paramsStr}){returnType}{modifiers} =")
+  self.indentLevel = saveIndent
+
+  self.increaseIndent()
+  self.emitNilChecks(nilChecks)
   self.generateBlock(node.lambdaBody)
   self.decreaseIndent()
 
-  # Сбрасываем модификатор типа возврощаемого значения после генерации функции
   self.currentLambdaReturnModifier = '\0'
 
 proc generateFunctionDeclaration(self: var CodeGenerator, node: Node) =
-  var name: string
-  var public: bool
-  var accessMethod: string
+  let (paramStrings, nilChecks) = self.processParameters(node.funcParams)
+  let returnType = self.processReturnType(node.funcRetType, node.funcRetTypeModifier)
+  let modifiers = processModifiers(node.funcMods)
+  let accessMethod = if node.funcPublic: "*" else: ""
 
-  name = node.funcName # если не анонимная функция, то имя функции
-  public = node.funcPublic
+  self.currentFuncReturnModifier = node.funcRetTypeModifier
 
-  if public == true: accessMethod = "*"
-  else: accessMethod = ""
+  let paramsStr = paramStrings.join(", ")
+  self.emitLine(fmt"proc {node.funcName}{accessMethod}({paramsStr}){returnType}{modifiers} =")
 
-  var params: seq[string] = @[]
-  var nilChecks: seq[string] = @[]
-
-  # Process parameters
-  for param in node.funcParams:
-    var paramStr = param.paramName
-    if param.paramType.len > 0:
-      paramStr.add(": ")
-
-      # Обрабатываем модификаторы типов
-      case param.paramTypeModifier
-      of '!':
-        # Строгий тип - добавляем проверку не-nil
-        paramStr.add(param.paramType)
-        # Добавим код проверки в начало функции
-        nilChecks.add(fmt"if {param.paramName} == nil: raise newException(ValueError, ""{param.paramName} cannot be nil"")")
-      of '?':
-        # Опциональный тип - используем Option[T]
-        self.addImport("options")
-        paramStr.add("Option[" & param.paramType & "]")
-      else:
-        # Обычный тип
-        paramStr.add(param.paramType)
-
-    params.add(paramStr)
-
-  # Handle return type
-  var returnType = ""
-  if node.funcRetType.len > 0:
-    # Сохраняем модификатор возвращаемого типа для использования в generateReturnStatement
-    self.currentFuncReturnModifier = node.funcRetTypeModifier
-    # Обрабатываем модификатор возвращаемого типа
-    case node.funcRetTypeModifier
-    of '?':
-      self.addImport("options")
-      returnType = ": Option[" & node.funcRetType & "]"
-    of '!':
-      returnType = ": " & node.funcRetType
-      # Добавим проверку результата перед возвратом
-    else:
-      returnType = ": " & node.funcRetType
-
-  # Handle modifiers
-  var modifiers = ""
-  if node.funcMods.len > 0:
-    modifiers = " {." & node.funcMods.join(", ") & ".}"
-
-  # Generate function signature
-  let paramsStr = params.join(", ")
-  self.emitLine(fmt"proc {name}{accessMethod}({paramsStr}){returnType}{modifiers} =")
-
-  # Generate function body
   self.increaseIndent()
-  # Вставляем проверки в начало тела функции
-  for check in nilChecks:
-    self.emitLine(check)
-  if nilChecks.len > 0:
-    self.emitLine("") # Пустая строка после проверок
-
+  self.emitNilChecks(nilChecks)
   self.generateBlock(node.funcBody)
   self.decreaseIndent()
 
-  # Сбрасываем модификатор типа возврощаемого значения после генерации функции
   self.currentFuncReturnModifier = '\0'
+  self.emitLine()
 
-  self.emitLine() # Add an empty line after function
+proc generateMethodDeclaration(self: var CodeGenerator, node: Node, className: string) =
+  let (paramStrings, nilChecks) = self.processParameters(node.funcParams)
+  let returnType = self.processReturnType(node.funcRetType, node.funcRetTypeModifier)
+  let modifiers = processModifiers(node.funcMods)
 
-proc generateMethodDeclaration(self: var CodeGenerator, node: Node,
-    className: string) =
-  let name = node.funcName
-  var params: seq[string] = @[]
-  var nilChecks: seq[string] = @[]
+  self.currentFuncReturnModifier = node.funcRetTypeModifier
 
-  # Process parameters
-  for param in node.funcParams:
-    var paramStr = param.paramName
-    if param.paramType.len > 0:
-      paramStr.add(": ")
+  let paramsStr = paramStrings.join(", ")
+  self.emitLine(fmt"method {node.funcName}*({paramsStr}){returnType}{modifiers} =")
 
-      # Обрабатываем модификаторы типов
-      case param.paramTypeModifier
-      of '!':
-        # Строгий тип - добавляем проверку не-nil
-        paramStr.add(param.paramType)
-        # Добавим код проверки в начало функции
-        nilChecks.add(fmt"if {param.paramName} == nil: raise newException(ValueError, ""{param.paramName} cannot be nil"")")
-      of '?':
-        # Опциональный тип - используем Option[T]
-        self.addImport("options")
-        paramStr.add("Option[" & param.paramType & "]")
-      else:
-        # Обычный тип
-        paramStr.add(param.paramType)
-
-    params.add(paramStr)
-
-  # Handle return type
-  var returnType = ""
-  if node.funcRetType.len > 0:
-    # Сохраняем модификатор возвращаемого типа для использования в generateReturnStatement
-    self.currentFuncReturnModifier = node.funcRetTypeModifier
-    # Обрабатываем модификатор возвращаемого типа
-    case node.funcRetTypeModifier
-    of '?':
-      self.addImport("options")
-      returnType = ": Option[" & node.funcRetType & "]"
-    of '!':
-      returnType = ": " & node.funcRetType
-      # Добавим проверку результата перед возвратом
-    else:
-      returnType = ": " & node.funcRetType
-
-  # Handle modifiers
-  var modifiers = ""
-  if node.funcMods.len > 0:
-    modifiers = " {." & node.funcMods.join(", ") & ".}"
-
-  # Generate function signature
-  let paramsStr = params.join(", ")
-  self.emitLine(fmt"method {name}*({paramsStr}){returnType}{modifiers} =")
-
-  # Generate function body
   self.increaseIndent()
-  # Вставляем проверки в начало тела функции
-  for check in nilChecks:
-    self.emitLine(check)
-  if nilChecks.len > 0:
-    self.emitLine("") # Пустая строка после проверок
-
+  self.emitNilChecks(nilChecks)
   self.generateBlock(node.funcBody)
   self.decreaseIndent()
 
-  # Сбрасываем модификатор типа возврощаемого значения после генерации функции
   self.currentFuncReturnModifier = '\0'
-
-  self.emitLine() # Add an empty line after function
+  self.emitLine()
 
 proc generateInitBlock(self: var CodeGenerator, node: Node) =
-  var params: seq[string] = @[]
-  var nilChecks: seq[string] = @[]
+  let (paramStrings, nilChecks) = self.processParameters(node.initParams)
+  let paramsStr = paramStrings.join(", ")
 
-  # Process parameters
-  for param in node.initParams:
-    var paramStr = param.paramName
-    if param.paramType.len > 0:
-      paramStr.add(": ")
-
-      # Обрабатываем модификаторы типов
-      case param.paramTypeModifier
-      of '!':
-        # Строгий тип - добавляем проверку не-nil
-        paramStr.add(param.paramType)
-        # Добавим код проверки в начало функции
-        nilChecks.add(fmt"if {param.paramName} == nil: raise newException(ValueError, ""{param.paramName} cannot be nil"")")
-      of '?':
-        # Опциональный тип - используем Option[T]
-        self.addImport("options")
-        paramStr.add("Option[" & param.paramType & "]")
-      else:
-        # Обычный тип
-        paramStr.add(param.paramType)
-
-    params.add(paramStr)
-
-  let paramsStr = params.join(", ")
-
-  # Генерируем метод init
   self.emitLine(fmt"method init*({paramsStr}) =")
   self.increaseIndent()
-
-  # Вставляем проверки в начало тела функции
-  for check in nilChecks:
-    self.emitLine(check)
-  if nilChecks.len > 0:
-    self.emitLine("") # Пустая строка после проверок
-
+  self.emitNilChecks(nilChecks)
   self.generateBlock(node.initBody)
-
   self.decreaseIndent()
   self.emitLine()
 
@@ -539,6 +424,9 @@ proc generatePackDeclaration(self: var CodeGenerator, node: Node) =
       if stmt.funcMods.len > 0:
         echo "Mods found: ", stmt.funcMods
       self.generateMethodDeclaration(stmt, name)
+    of nkAssign:
+      let assignExpr = self.generateExpression(stmt)
+      self.emitLine(assignExpr)
     of nkIf, nkOutPut:
       # Эти узлы должны быть внутри методов, а не напрямую в классе
       echo "Warning: statement outside of method: ", stmt.kind
@@ -576,6 +464,94 @@ proc generateIfStatement(self: var CodeGenerator, node: Node) =
     self.emitLine("else:")
     self.increaseIndent()
     self.generateBlock(node.ifElse)
+    self.decreaseIndent()
+
+
+proc generateCaseCondition(self: var CodeGenerator, switchExpr: string, condition: Node): string =
+  case condition.kind
+  of nkNumber, nkString, nkIdent:
+    # Простое сравнение: value == condition
+    let condExpr = self.generateExpression(condition)
+    return fmt"{switchExpr} == {condExpr}"
+  
+  of nkBinary:
+    case condition.binOp
+    of "..":
+      # Диапазон включительно
+      let start = self.generateExpression(condition.binLeft)
+      let endExpr = self.generateExpression(condition.binRight)
+      return fmt"({switchExpr} >= {start} and {switchExpr} <= {endExpr})"
+    
+    of "...":
+      # Диапазон исключительно  
+      let start = self.generateExpression(condition.binLeft)
+      let endExpr = self.generateExpression(condition.binRight)
+      return fmt"({switchExpr} >= {start} and {switchExpr} < {endExpr})"
+    
+    of "and":
+      # Логическое И: (condition1) and (condition2)
+      let left = self.generateCaseCondition(switchExpr, condition.binLeft)
+      let right = self.generateCaseCondition(switchExpr, condition.binRight)
+      return fmt"({left}) and ({right})"
+    
+    of "or":
+      # Логическое ИЛИ: (condition1) or (condition2)
+      let left = self.generateCaseCondition(switchExpr, condition.binLeft)
+      let right = self.generateCaseCondition(switchExpr, condition.binRight)
+      return fmt"({left}) or ({right})"
+    
+    else:
+      # Другие бинарные операции - сравниваем результат
+      let condExpr = self.generateExpression(condition)
+      return fmt"{switchExpr} == {condExpr}"
+  
+  of nkCall:
+    # Вызов функции - сравниваем результат
+    let condExpr = self.generateExpression(condition)
+    return fmt"{switchExpr} == {condExpr}"
+  
+  else:
+    # Для остальных случаев - прямое сравнение
+    let condExpr = self.generateExpression(condition)
+    return fmt"{switchExpr} == {condExpr}"
+
+proc generateSwitchCondition(self: var CodeGenerator, switchExpr: string, caseNode: Node): string =
+  var conditions: seq[string] = @[]
+  
+  for condition in caseNode.caseConditions:
+    let conditionStr = self.generateCaseCondition(switchExpr, condition)
+    conditions.add(conditionStr)
+  
+  result = conditions.join(" or ")
+  
+  # Добавляем guard условие если есть
+  if caseNode.caseGuard != nil:
+    let guardExpr = self.generateExpression(caseNode.caseGuard)
+    result = fmt"({result}) and ({guardExpr})"
+
+proc generateSwitchStatement(self: var CodeGenerator, node: Node) =
+  let switchExpr = self.generateExpression(node.switchExpr)
+  
+  # Генерируем как серию if-elif-else
+  var isFirst = true
+  
+  for caseNode in node.switchCases:
+    let keyword = if isFirst: "if" else: "elif"
+    isFirst = false
+    
+    # Генерируем условие для case
+    let condition = self.generateSwitchCondition(switchExpr, caseNode)
+    self.emitLine(fmt"{keyword} {condition}:")
+    
+    self.increaseIndent()
+    self.generateBlock(caseNode.caseBody)
+    self.decreaseIndent()
+  
+  # Генерируем default case если есть
+  if node.switchDefault != nil:
+    self.emitLine("else:")
+    self.increaseIndent()
+    self.generateBlock(node.switchDefault)
     self.decreaseIndent()
 
 proc generateForStatement(self: var CodeGenerator, node: Node) =
@@ -730,6 +706,7 @@ proc generateStatement(self: var CodeGenerator, node: Node) =
   of nkPackDef:       self.generatePackDeclaration(node)
   of nkState:         self.generateStateDeclaration(node)
   of nkIf:            self.generateIfStatement(node)
+  of nkSwitch:        self.generateSwitchStatement(node)
   of nkFor:           self.generateForStatement(node)
   of nkEach:          self.generateEachStatement(node)
   of nkWhile:         self.generateWhileStatement(node)
@@ -755,18 +732,17 @@ proc generateProgram(self: var CodeGenerator, node: Node): string =
   self.indentLevel = 0
   self.importedModules = initHashSet[string]()
 
-  # Add standard imports
-  self.addImport("strutils")
-  self.addImport("strformat")
-  self.addImport("times")
+  self.emitLine(fmt"# NC Ryton Compiler - v{self.rytonVersion}          #")
+  self.emitLine(fmt"# (с) 2025 CodeLibraty Foundation     #")
+  self.emitLine(fmt"#     This file is auto-generated     #")
 
-  # Generate statements
+  # Generate statementse
   for stmt in node.stmts:
     self.generateStatement(stmt)
 
   # Prepend imports
   let imports = self.generateImports()
-  return imports & "\n" & self.output
+  return imports & "\n\n" & self.output
 
 proc generateNimCode*(ast: Node): string =
   ## Generates Nim code from the given AST
@@ -783,8 +759,7 @@ proc generateNimCode*(ast: Node): string =
 
 # Вспомогательные функции для специфических языковых конструкций
 
-proc generateMetaTableCode*(name: string, properties: Table[string,
-    Node]): string =
+proc generateMetaTableCode*(name: string, properties: Table[string, Node]): string =
   ## Генерирует код для MetaTable (специальная конструкция Ryton)
   var generator = newCodeGenerator()
 
@@ -801,8 +776,7 @@ proc generateMetaTableCode*(name: string, properties: Table[string,
 
   return generator.generateImports() & "\n" & generator.output
 
-proc generateContractCode*(name: string, preConditions, postConditions,
-    invariants: seq[string]): string =
+proc generateContractCode*(name: string, preConditions, postConditions, invariants: seq[string]): string =
   ## Генерирует код для Contract (проектирование по контракту)
   var generator = newCodeGenerator()
 

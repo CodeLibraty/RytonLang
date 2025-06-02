@@ -1,45 +1,75 @@
-import times
-import strformat
-import strutils
+import os
 import classes
+
+# NC Ryton Compiler - v0.2.4          #
+# (с) 2025 CodeLibraty Foundation     #
+#     This file is auto-generated     #
 import std.Core.stdTypes
 import std.Core.stdModifiers
 import std.Core.stdFunctions
-while True:
-  print("Hello World!")
-while 1 == 18:
-  print("Я хочу пиццы")
+import std.Shell
+proc changeDir*(dir: String) =
+  discard
 
-class Simple:
-  method simple*() =
-    if name:
-      if name:
-        print("Simple nahuy")
-  
+proc print*(text: String) =
+  discard
 
-class Package:
-  method myFunction*(name: String) =
-    print("Hello World!", name)
-  
-  method Main*() =
-    print("HI! I Ryton App")
-    var name = input("Enter your name: ")
-    if not isType(name, String):      
-      print("wtf? enter youre name as a string!")
-      
+proc runOutput*(cmd: String): Int =
+  discard
 
-    pause(1000)
-    print("Hello ", name, "!")
-    var age = toInt(input("Enter your age: "))
-    pause(1000)
-    if age < 18:
-      print("You are not old enough to enter this site!")
-    elif age > 18:
-      print("You are old enough to enter this site!")
+
+class DeltaShell:
+  method cmdRun*(cmd: String) {.mod, moss.} =
+    let command = cmd.split(" ")
+    if command[0] == "cd":
+      changeDir(command[1])
     else:
-      print("You old!")
-    print("You are ", age)
+      print(runOutput(cmd))
   
-var package = mysd.Package(sas, 10, "kdkd", [1, 2, 3])
-package.myFunction("sas")
-package.Main()
+  method DShell*(sas: String) =
+    var command = " "
+    let sas = proc() =
+      discard
+
+    let sdas = proc(arg: Int): Int {.trace.} =
+      return arg * 10
+
+    while true:
+      sleep(100)
+      command = input("> ")
+      if command == "exit":
+        break
+      else:
+        this.cmdRun(command)
+  
+if value == 1:
+  print("1")
+elif value == 2:
+  print("2")
+elif (value == 3) and (value == 4):
+  print("3 and 4")
+elif (value == 5) or (value == 6):
+  print("5 or 6")
+elif (value >= 7 and value <= 10):
+  print("7..10")
+elif (value >= 11 and value < 15):
+  print("11...15")
+else:
+  print("else")
+proc test*(a: Int, b: Int) =
+  var aa = proc() =
+    var aa = proc() =
+      var aa = proc() =
+        var aa = proc() =
+          var aa = proc() =
+            var aa = proc() =
+              discard
+
+
+
+
+
+
+
+let shell = DeltaShell()
+shell.DShell("String ")

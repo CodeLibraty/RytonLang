@@ -62,8 +62,6 @@ proc ceil*(x: Float): Int =
   ceil(x).int
 
 # Строковые функции
-proc split*(s: string, sep: string = " "): Array[string] =
-  s.split(sep)
 
 proc join*(arr: Array[string], sep: string = ""): string =
   arr.join(sep)

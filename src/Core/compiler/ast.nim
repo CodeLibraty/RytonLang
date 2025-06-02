@@ -103,6 +103,20 @@ method visitIf*(self: AstVisitor, node: Node) {.base.} =
   if node.ifElse != nil:
     self.visit(node.ifElse)
 
+method visitSwitch*(self: AstVisitor, node: Node) {.base.} =
+  self.visit(node.switchExpr)
+  for caseNode in node.switchCases:
+    self.visit(caseNode)
+  if node.switchDefault != nil:
+    self.visit(node.switchDefault)
+
+method visitSwitchCase*(self: AstVisitor, node: Node) {.base.} =
+  for condition in node.caseConditions:
+    self.visit(condition)
+  if node.caseGuard != nil:
+    self.visit(node.caseGuard)
+  self.visit(node.caseBody)
+
 method visitInit*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.initBody)
 
@@ -235,6 +249,8 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
   of nkStateBody:         self.visitStateBody(node)
   of nkParam:             self.visitParam(node)
   of nkIf:                self.visitIf(node)
+  of nkSwitch:            self.visitSwitch(node)
+  of nkSwitchCase:        self.visitSwitchCase(node)
   of nkInit:              self.visitInit(node)
   of nkFor:               self.visitFor(node)
   of nkEach:              self.visitEach(node)
@@ -415,6 +431,45 @@ method transformIf*(self: AstTransformer, node: Node): Node {.base.} =
   result.ifThen = thenBranch
   result.ifElifs = newElifs
   result.ifElse = elseBranch
+  result.line = node.line
+  result.column = node.column
+
+method transformSwitch*(self: AstTransformer, node: Node): Node {.base.} =
+  let expr = self.transform(node.switchExpr)
+  var newCases: seq[Node] = @[]
+  for caseNode in node.switchCases:
+    let transformed = self.transform(caseNode)
+    if transformed != nil:
+      newCases.add(transformed)
+  
+  var defaultCase: Node = nil
+  if node.switchDefault != nil:
+    defaultCase = self.transform(node.switchDefault)
+  
+  result = newNode(nkSwitch)
+  result.switchExpr = expr
+  result.switchCases = newCases
+  result.switchDefault = defaultCase
+  result.line = node.line
+  result.column = node.column
+
+method transformSwitchCase*(self: AstTransformer, node: Node): Node {.base.} =
+  var newConditions: seq[Node] = @[]
+  for condition in node.caseConditions:
+    let transformed = self.transform(condition)
+    if transformed != nil:
+      newConditions.add(transformed)
+  
+  var guard: Node = nil
+  if node.caseGuard != nil:
+    guard = self.transform(node.caseGuard)
+  
+  let body = self.transform(node.caseBody)
+  
+  result = newNode(nkSwitchCase)
+  result.caseConditions = newConditions
+  result.caseGuard = guard
+  result.caseBody = body
   result.line = node.line
   result.column = node.column
 
@@ -737,6 +792,8 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
   of nkStateBody:     return self.transformStateBody(node)
   of nkParam:         return self.transformParam(node)
   of nkIf:            return self.transformIf(node)
+  of nkSwitch:        return self.transformSwitch(node)
+  of nkSwitchCase:    return self.transformSwitchCase(node)
   of nkInit:          return self.transformInit(node)
   of nkFor:           return self.transformFor(node)
   of nkEach:          return self.transformEach(node)
@@ -1347,6 +1404,7 @@ proc printAST*(node: Node, indent: int = 0) =
     echo indentStr & "  Target:"
     printAST(node.assignTarget, indent + 4)
     echo indentStr & "  Operator: " & node.assignOp
+    echo indentStr & "  DeclType: " & $node.declType
     echo indentStr & "  Value:"
     printAST(node.assignVal, indent + 4)
     if node.assignProps.len > 0:

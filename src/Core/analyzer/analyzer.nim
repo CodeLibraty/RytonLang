@@ -1,74 +1,61 @@
-import std/[strutils, strformat, tables, sets, sequtils, options]
-import ../compiler/lexer
+## Главный модуль анализатора
+import semantic_analyzer, symbol_table, type_checker
+import ../compiler/ast
 
-type
-  SyntaxError* = object
-    message*: string
-    line*: int
-    column*: int
-    lineContent*: string
-    suggestion*: string
+export semantic_analyzer, symbol_table, type_checker
 
-  Block = object
-    openBrace: Token
-    defToken: Option[Token]
-    blockType: TokenKind
-
-proc formatSyntaxError*(error: SyntaxError): string =
-  var errorMessage = fmt"""
-╭ SyntaxError
-│ {error.message}
-├─────────────────
-│ Line {error.line}
-│ 
-│ {error.lineContent}
-│ {' '.repeat(max(0, error.column-1))}^"""
-
-  if error.suggestion.len > 0:
-    errorMessage &= fmt""" 
-│ 
-│ Suggestion: {error.suggestion}"""
+proc analyzeAST*(ast: Node): tuple[success: bool, errors: seq[string], warnings: seq[string]] =
+  ## Главная функция для анализа AST
+  ## Возвращает результат анализа с ошибками и предупреждениями
   
-  errorMessage &= "\n╰─────────────────"
-  return errorMessage
-
-proc analyzeCode*(code: string): seq[SyntaxError] =
-  result = @[]
-  let lines = code.splitLines()
-  let tokens = tokenize(code)
+  let analyzer = newSemanticAnalyzer()
   
-  var blockStack: seq[Token] = @[]
+  # Выполняем семантический анализ
+  let success = analyzer.analyze(ast)
   
-  for token in tokens:
-    case token.kind
-    of tkLBrace: blockStack.add(token)
-    of tkRBrace:
-      if blockStack.len == 0:
-        result.add(SyntaxError(
-          message: "Лишняя закрывающая скобка '}'",
-          line: token.line,
-          column: token.column,
-          lineContent: lines[token.line - 1]
-        ))
-      else:
-        discard blockStack.pop()
+  # Проверяем неиспользуемые символы
+  analyzer.checkUnusedSymbols()
+  
+  return (
+    success: success,
+    errors: analyzer.getErrors(),
+    warnings: analyzer.getWarnings()
+  )
 
-    else: discard
+proc printAnalysisResult*(result: tuple[success: bool, errors: seq[string], warnings: seq[string]]) =
+  ## Красиво выводит результаты анализа
+  
+  const
+    FgRed = "\e[31m"
+    FgYellow = "\e[33m"
+    FgGreen = "\e[32m"
+    Reset = "\e[0m"
+  
+  if result.errors.len > 0:
+    echo fmt"{FgRed}✗ SEMANTIC ERRORS:{Reset}"
+    for error in result.errors:
+      echo fmt"  {FgRed}•{Reset} {error}"
+    echo ""
+  
+  if result.warnings.len > 0:
+    echo fmt"{FgYellow}⚠ WARNINGS:{Reset}"
+    for warning in result.warnings:
+      echo fmt"  {FgYellow}•{Reset} {warning}"
+    echo ""
+  
+  if result.success:
+    echo fmt"{FgGreen}✓ Semantic analysis completed successfully{Reset}"
+  else:
+    echo fmt"{FgRed}✗ Semantic analysis failed with {result.errors.len} error(s){Reset}"
 
-  if blockStack.len > 0:
-    let lastBrace = blockStack[^1]
-    result.add(SyntaxError(
-      message: "Незакрытый блок",
-      line: lastBrace.line, 
-      column: lastBrace.column,
-      lineContent: lines[lastBrace.line - 1],
-      suggestion: "Добавьте закрывающую скобку '}'"
-    ))
+# Удобные функции для интеграции
+proc quickAnalyze*(ast: Node): bool =
+  ## Быстрый анализ - возвращает только успех/неудачу
+  let result = analyzeAST(ast)
+  return result.success
 
-proc checkSyntax*(code: string): bool =
-  let errors = analyzeCode(code)
-  if errors.len > 0:
-    for error in errors:
-      echo formatSyntaxError(error)
-    return false
-  return true
+proc verboseAnalyze*(ast: Node): bool =
+  ## Анализ с выводом всех диагностик
+  let result = analyzeAST(ast)
+  printAnalysisResult(result)
+  return result.success

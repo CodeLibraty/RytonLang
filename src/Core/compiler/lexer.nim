@@ -2,11 +2,11 @@ import std/[strutils, strformat, tables]
 
 type
   LexerContext* = enum
-    lcNormal,     # Обычный контекст
-    lcExpression, # Внутри выражения
-    lcStatement,  # Начало statement
-    lcAttribute,  # После точки
-    lcImport,     # Внтури module import
+    lcNormal      # Обычный контекст
+    lcExpression  # Внутри выражения
+    lcStatement   # Начало statement
+    lcAttribute   # После точки
+    lcImport      # Внтури module import
     lcTypeCheck   # Внтури блока типовой проверки
 
   TokenKind* = enum
@@ -15,11 +15,11 @@ type
     tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkError, tkSwitch, tkWith
     tkLazy, tkData, tkTable, tkPrivate, tkSlots, tkImport, tkModule,
     tkNoop, tkOutPut, tkLambda, tkEach, tkFrom, tkTo, tkStep, tkWhere,
-    tkState, tkWhile
+    tkState, tkWhile, tkDefault, tkCase
     
     # Операторы
     tkPlus, tkMinus, tkMul, tkDiv, tkAssign, tkEq, tkNe, tkLt, tkGt, tkLe, tkGe
-    tkPlusEq, tkMinusEq, tkMulEq, tkDivEq, tkPipe, tkAnd, tkOr, tkRightArrow, tkLeftArrow,
+    tkPlusEq, tkMinusEq, tkMulEq, tkDivEq, tkPipe, tkAnd, tkOr, tkNot, tkRightArrow, tkLeftArrow,
     tkDot, tkComma, tkColon, tkColonColon, tkSemicolon, tkQuestion, tkBang, tkPercent,
     tkColonEq, tkTrue, tkFalse, tkDotDot, tkDotDotDot, tkRetType, tkModStart, tkModEnd,
     tkPtr, tkRef, tkBar, tkDef, tkVal, tkFatArrow
@@ -86,6 +86,8 @@ proc newLexer*(source: string): Lexer =
       "try":        tkTry,
       "error":      tkError,
       "switch":     tkSwitch,
+      "case":       tkCase,
+      "default":    tkDefault,
       "with":       tkWith,
       "lazy":       tkLazy,
       "data":       tkData,
@@ -101,6 +103,9 @@ proc newLexer*(source: string): Lexer =
       "where":      tkWhere,
       "true":       tkTrue,
       "false":      tkFalse,
+      "and":        tkAnd,
+      "or":         tkOr,
+      "not":        tkNot,
       "noop":       tkNoop,
       "module import":  tkModule
     }.toTable
@@ -321,7 +326,12 @@ proc scanToken(self: Lexer) =
       self.addToken(tkComma)
       self.context = lcExpression
     of ';':
-      self.addToken(tkSemicolon)
+      if self.match(' '):
+        self.addToken(tkNewline)
+        inc(self.line)
+        self.column = 1
+      else:
+        self.addToken(tkSemicolon)
       self.context = lcStatement
     of '?':
       self.addToken(tkQuestion)

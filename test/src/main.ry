@@ -2,10 +2,106 @@ module import {
     std.Core.stdTypes
     std.Core.stdModifiers
     std.Core.stdFunctions
+    std.Shell
 }
 
 // Copyright (c) 2025, CodeLibraty Foundation
 // ! this is a test file for testing the compiler
+
+func changeDir(dir: String) => noop
+func print(text: String) => noop
+func runOutput(cmd: String):Int => noop
+
+pack DeltaShell {
+    func cmdRun(cmd: String) !(mod, moss) {
+        val command = cmd.split(' ')
+        if command[0] == "cd" {
+            changeDir(command[1])
+        } else => print(runOutput(cmd))
+    }
+
+    func DShell(sas: String) {
+        <Int> def command = " "
+        <Int> val sas = lambda => noop
+        <Int> val sdas = lambda(arg: Int):Int !(trace) {
+            output arg * 10
+        }
+        infinit 100 {
+            command = input("> ")
+            if command == "exit" => break
+            else => this.cmdRun(command)
+        }
+    }
+}
+
+switch value {
+    case 1 => print("1")
+    case 2 {
+        print("2")
+    }
+    case 3 and 4 => print("3 and 4")
+    case 5 or 6 => print("5 or 6")
+    case 7..10 => print("7..10")
+    case 11...15 => print("11...15")
+    else => print("else")
+}
+
+
+val shell = DeltaShell()
+shell.DShell("String ")
+
+</
+// not work structure
+struct Person {
+    <String
+        val name = "Ryton"
+        def nonema = "As"
+    >
+    <Int
+        def age = 18
+        val age2 = 19
+    >
+}
+//
+
+
+def text = "Ers"; print(text)
+
+func Sas => 
+    func Sas1 => func Sas2 =>
+        func Sas3 =>
+            print()
+
+func sas { noop }
+
+func aa() { 
+    noop
+}
+
+def aa = lambda() => noop
+
+func nested => if a => if b => if c => print("ABC"); else => noop; else => noop; else => noop
+
+func MyFunc(arg: String):Bool !(trace) { noop }
+
+func factorial(n: Int):Int => if n <= 1 => output 1 
+else =>
+    output n * factorial(n - 1)
+
+func myFunction => if hi == True {
+    print("Hello World!")
+} else => noop
+
+func myFunction(name: ?String) => if name == "Ryton" {
+    while name == "Ryton" => print("Hello World!")
+}
+
+pack Parser => 
+    func parse(text: String) => 
+        while not text.empty {
+            if char.isDigit => parseNumber()
+            elif char.isLetter => parseWord()
+        }
 
 while True {
     print("Hello World!")
@@ -13,13 +109,19 @@ while True {
 
 while 1 == 18 and 2 == 2 or 3 == 3 => print("Я хочу пиццы")
 
-pack Simple => func simple => if name => if name => print("Simple nahuy")
+pack Simple => func simple => 
+    if name => if name => print("Simple nahuy")
+
+pack sas <- Par !(mode, ssaa, d) {
+    func ign => noop
+}
 
 pack Package {
+    init {
+        mu
+    }
 
-
-
-    func myFunction(name: String) {
+    func myFunction(name: !String) {
         print("Hello World!", name)
     }
 
@@ -47,7 +149,9 @@ def package = mysd.Package(sas, 10, "kdkd", [1, 2, 3])
 package.myFunction("sas")
 package.Main()
 
+/>
+</ planed syntax
+    func main[T](@staticArg: Int, ->refArg: String, def myGeneric: T) {}
 
-</
-    func main(@staticArg: Int, ->refArg: String) {}
+    <Array:private `inline`> def myArray = ["Hello", "World"]
 />

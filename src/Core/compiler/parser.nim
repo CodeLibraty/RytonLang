@@ -29,7 +29,9 @@ type
     nkState,          # Объявление состояния
     nkStateBody,      # Тело состояния
     nkWhile,
-
+    nkSwitch,         # Switch statement
+    nkSwitchCase,     # Case в switch
+  
     # Выражения
     nkBinary,         # Бинарное выражение
     nkUnary,          # Унарное выражение
@@ -120,13 +122,24 @@ type
       paramName*: string
       paramType*: string
       paramTypeModifier*: char
+      paramDefault*: Node
     
     of nkIf:
       ifCond*: Node
       ifThen*: Node
       ifElifs*: seq[tuple[cond: Node, body: Node]]
       ifElse*: Node
+
+    of nkSwitch:
+      switchExpr*: Node              # Выражение для сравнения
+      switchCases*: seq[Node]        # Список case'ов
+      switchDefault*: Node           # Default case (может быть nil)
     
+    of nkSwitchCase:
+      caseConditions*: seq[Node]     # Условия case (может быть несколько через |)
+      caseBody*: Node               # Тело case
+      caseGuard*: Node              # Guard условие (может быть nil)
+
     of nkFor:
       forVar*: string
       forRange*: tuple[start: Node, inclusive: bool, endExpr: Node]
@@ -486,12 +499,12 @@ proc call(p: Parser): Node =
   return expr
 
 proc unary(p: Parser): Node =
-  if p.match(tkMinus, tkBang):
+  if p.match(tkMinus, tkNot):
     let operator = p.previous()
     let right = p.unary()
     
     result = newNode(nkUnary)
-    result.unOp = if operator.kind == tkMinus: "-" else: "!"
+    result.unOp = if operator.kind == tkMinus: "-" else: "not"
     result.unExpr = right
     result.line = operator.line
     result.column = operator.column
@@ -1017,6 +1030,83 @@ proc ifStatement(p: Parser): Node =
   result.column = token.column
   return result
 
+
+proc parseSwitchCase(p: Parser): Node =
+  var conditions: seq[Node] = @[]
+  var guard: Node = nil
+  
+  # Парсим число
+  let start = p.primary()
+  
+  # Проверяем диапазон
+  if p.match(tkDotDot, tkDotDotDot):
+    let op = p.previous()
+    let endExpr = p.primary()
+    
+    let range = newNode(nkBinary)
+    range.binOp = if op.kind == tkDotDot: ".." else: "..."
+    range.binLeft = start
+    range.binRight = endExpr
+    conditions.add(range)
+  else:
+    conditions.add(start)
+  
+  # Парсим дополнительные условия через 'and' или 'or'
+  while p.match(tkAnd, tkOr):
+    let op = p.previous()
+    let right = p.expression()
+    
+    # Создаем бинарное выражение для логических операторов
+    let binary = newNode(nkBinary)
+    binary.binOp = if op.kind == tkAnd: "and" else: "or"
+    binary.binLeft = conditions[conditions.len - 1]
+    binary.binRight = right
+    
+    conditions[conditions.len - 1] = binary
+  
+  # Проверяем guard условие (if)
+  if p.match(tkIf):
+    guard = p.expression()
+  
+  # Ожидаем => или {
+  let body = p.parseBlock()
+
+  result = newNode(nkSwitchCase)
+  result.caseConditions = conditions
+  result.caseBody = body
+  result.caseGuard = guard
+
+proc switchStatement(p: Parser): Node =
+  let token = p.consume(tkSwitch, "Expected 'switch' keyword")
+  let expr = p.expression()
+  
+  discard p.consume(tkLBrace, "Expected '{' after switch expression")
+  
+  var cases: seq[Node] = @[]
+  var defaultCase: Node = nil
+  
+  while not p.check(tkRBrace) and not p.isAtEnd():
+    # Пропускаем переносы строк
+    while p.match(tkNewline): discard
+    
+    if p.match(tkCase):
+      let caseNode = p.parseSwitchCase()
+      if caseNode != nil:
+        cases.add(caseNode)
+    elif p.match(tkElse):
+      defaultCase = p.parseBlock()
+    else:
+      break
+  
+  discard p.consume(tkRBrace, "Expected '}' after switch body")
+  
+  result = newNode(nkSwitch)
+  result.switchExpr = expr
+  result.switchCases = cases
+  result.switchDefault = defaultCase
+  result.line = token.line
+  result.column = token.column
+
 proc tryStatement(p: Parser): Node =
   let token = p.consume(tkTry, "Expected 'try' keyword")
   
@@ -1195,8 +1285,6 @@ proc functionDeclaration(p: Parser): Node =
 
 proc methodDeclaration(p: Parser): Node =
   let token = p.consume(tkFunc, "Expected 'func' keyword")
-  
-  # Методы не могут быть анонимными
 
   # Имя функции
   let name = p.consume(tkIdentifier, "Expected function name after 'func'").lexeme
@@ -1340,6 +1428,10 @@ proc parsePackBody(p: Parser): Node =
         let initDef = p.parseInitBlock()
         echo "Adding init kind: ", initDef.kind
         statements.add(initDef)
+      elif p.check(tkDef) or p.check(tkVal):
+        let varDef = p.assignment()
+        echo "Adding var kind: ", varDef.kind
+        statements.add(varDef)
       elif p.check(tkState):
         let stateDef = p.parseState()
         echo "Adding state kind: ", stateDef.kind
@@ -1360,6 +1452,7 @@ proc parseBlock(p: Parser): Node =
   result.blockStmts = @[]
 
   if p.match(tkFatArrow):  # => для однострочного блока
+    if p.match(tkNewline): discard # пропускаяем одну новую строку если она есть
     let stmt = p.statement()
     if stmt != nil:
       result.blockStmts.add(stmt)
@@ -1389,7 +1482,10 @@ proc statement(p: Parser): Node =
   # Обработка условных операторов
   if p.check(tkIf):
     return p.ifStatement()
-  
+
+  if p.check(tkSwitch):
+    return p.switchStatement()
+
   # Обработка циклов
   if p.check(tkFor):
     return p.forStatement()

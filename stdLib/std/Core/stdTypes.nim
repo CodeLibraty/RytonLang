@@ -21,6 +21,7 @@ type
   Void*     = typeof(nil)
   Any*      = auto
   Int*      = int
+  Lambda*   = proc (args: varargs[Any]) # сделать работу через дженэрик
 
   # Compound Array types
   Float32Array*   = Array[Float32]
