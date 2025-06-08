@@ -14,17 +14,21 @@ proc analyzeFunctionDeclaration*(self: SemanticAnalyzer, node: Node) =
   let oldFunction = self.currentFunction
   self.currentFunction = node.funcName
   
-  # Добавляем функцию в текущую область видимости
+  # Добавляем функцию в ГЛОБАЛЬНУЮ область видимости (для UFCS)
   let funcSymbol = Symbol(
     name: node.funcName,
     kind: if self.currentClass != "": skMethod else: skFunction,
     symbolType: node.funcRetType,
     line: node.line,
     column: node.column,
-    scope: self.currentScope.name
+    scope: "global"  # Всегда добавляем функции в глобальную область
   )
-  
+
+  # Сохраняем текущую область и переключаемся на глобальную
+  let currentScope = self.currentScope
+  self.currentScope = self.globalScope
   discard self.addSymbol(funcSymbol)
+  self.currentScope = currentScope  # Возвращаемся обратно
   
   # Входим в область видимости функции
   self.enterScope(fmt"func_{node.funcName}")
@@ -116,36 +120,20 @@ proc analyzeAssignment*(self: SemanticAnalyzer, node: Node) =
       echo fmt"Current scope: {self.currentScope.name}"
       echo fmt"Value type: {valueType}"
       
-      # Ищем область видимости функции
-      var targetScope = self.currentScope
-      while targetScope != nil:
-        echo fmt"Checking scope: {targetScope.name}"
-        if targetScope.name.startsWith("func_"):
-          echo fmt"Found function scope: {targetScope.name}"
-          break
-        targetScope = targetScope.parent
-      
-      if targetScope == nil:
-        echo "No function scope found, using current"
-        targetScope = self.currentScope
-      
       let varSymbol = Symbol(
         name: varName,
         kind: skVariable,
         symbolType: valueType,
         line: node.line,
         column: node.column,
-        scope: targetScope.name
+        scope: self.currentScope.name
       )
       
       # Добавляем в текущую область видимости
-      let oldScope = self.currentScope
-      self.currentScope = targetScope
       let success = self.addSymbol(varSymbol)
-      self.currentScope = oldScope
       
       if success:
-        echo fmt"SUCCESS: Added variable '{varName}' to scope '{targetScope.name}'"
+        echo fmt"SUCCESS: Added variable '{varName}' to scope '{self.currentScope.name}'"
       else:
         echo fmt"FAILED: Could not add variable '{varName}'"
     
@@ -277,6 +265,8 @@ proc analyzeStatement*(self: SemanticAnalyzer, node: Node) =
     self.analyzePackDeclaration(node)
   of nkAssign:
     self.analyzeAssignment(node)
+  of nkExprStmt:
+    self.analyzeStatement(node.expr)
   of nkIf:
     self.analyzeIfStatement(node)
   of nkFor:
@@ -287,8 +277,6 @@ proc analyzeStatement*(self: SemanticAnalyzer, node: Node) =
     self.analyzeWhileStatement(node)
   of nkOutPut:
     self.analyzeReturnStatement(node)
-  of nkExprStmt:
-    discard self.analyzeExpression(node.expr)
   of nkBlock:
     for stmt in node.blockStmts:
       self.analyzeStatement(stmt)

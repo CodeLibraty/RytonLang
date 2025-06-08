@@ -194,6 +194,9 @@ method visitIdent*(self: AstVisitor, node: Node) {.base.} =
 method visitNumber*(self: AstVisitor, node: Node) {.base.} =
   discard
 
+method visitFormatString*(self: AstVisitor, node: Node) {.base.} =
+  discard
+
 method visitString*(self: AstVisitor, node: Node) {.base.} =
   discard
 
@@ -270,6 +273,7 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
   of nkIdent:             self.visitIdent(node)
   of nkNumber:            self.visitNumber(node)
   of nkString:            self.visitString(node)
+  of nkFormatString:      self.visitFormatString(node)
   of nkBool:              self.visitBool(node)
   of nkArray:             self.visitArray(node)
   of nkTypeCheck:         self.visit(node)
@@ -714,6 +718,13 @@ method transformString*(self: AstTransformer, node: Node): Node {.base.} =
   result.line = node.line
   result.column = node.column
 
+method transformFormatString*(self: AstTransformer, node: Node): Node {.base.} =
+  result = newNode(nkFormatString)
+  result.formatType = node.formatType
+  result.formatContent = node.formatContent
+  result.line = node.line
+  result.column = node.column
+
 method transformBool*(self: AstTransformer, node: Node): Node {.base.} =
   result = newNode(nkBool)
   result.boolVal = node.boolVal
@@ -813,6 +824,7 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
   of nkIdent:         return self.transformIdent(node)
   of nkNumber:        return self.transformNumber(node)
   of nkString:        return self.transformString(node)
+  of nkFormatString:  return self.transformFormatString(node)
   of nkBool:          return self.transformBool(node)
   of nkTypeCheck:     return self.transformTypeCheck(node)
   of nkArray:         return self.transformArray(node)
@@ -1128,7 +1140,10 @@ proc `$`*(node: Node): string =
   
   of nkString:
     result = "String: \"" & node.strVal & "\""
-  
+
+  of nkFormatString:
+    result = "FormatString: " & node.formatType & "(\"" & node.formatContent & "\")"
+
   of nkBool:
     result = "Bool: " & $node.boolVal
 
@@ -1405,6 +1420,8 @@ proc printAST*(node: Node, indent: int = 0) =
     printAST(node.assignTarget, indent + 4)
     echo indentStr & "  Operator: " & node.assignOp
     echo indentStr & "  DeclType: " & $node.declType
+    echo indentStr & "  varType: " & node.varType
+    echo indentStr & "  varTypeModifier: " & node.varTypeModifier
     echo indentStr & "  Value:"
     printAST(node.assignVal, indent + 4)
     if node.assignProps.len > 0:
@@ -1438,7 +1455,12 @@ proc printAST*(node: Node, indent: int = 0) =
   
   of nkString:
     echo indentStr & "String: \"" & node.strVal & "\""
-  
+
+  of nkFormatString:
+    echo indentStr & "Format String:"
+    echo indentStr & "  Formatter: " & node.formatType
+    echo indentStr & "  Content: \"" & node.formatContent & "\""
+
   of nkBool:
     echo indentStr & "Boolean: " & (if node.boolVal: "true" else: "false")
   

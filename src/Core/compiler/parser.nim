@@ -46,6 +46,7 @@ type
     nkIdent,          # Идентификатор
     nkNumber,         # Число
     nkString,         # Строка
+    nkFormatString,   # Форматированная строка
     nkBool,           # Булево значение
     nkArray,          # Массив
     nkTypeCheck,      # Типо-повденческий контроль
@@ -202,12 +203,14 @@ type
       groupExpr*: Node
     
     of nkAssign:
-      declType*:      DeclType 
-      assignOp*:      string
-      assignTarget*:  Node
-      assignVal*:     Node
-      assignProps*:   seq[Node]
-    
+      declType*:          DeclType
+      assignOp*:          string
+      assignTarget*:      Node
+      assignVal*:         Node
+      assignProps*:       seq[Node]
+      varType*:           string
+      varTypeModifier*:   char
+      
     of nkIdent:
       ident*:   string
     
@@ -216,6 +219,10 @@ type
     
     of nkString:
       strVal*:  string
+
+    of nkFormatString:
+      formatType*: string     # Тип форматтера (fmt, custom, etc.)
+      formatContent*: string  # Содержимое строки
 
     of nkTypeCheck:
       checkType*:   string    # Тип для проверки
@@ -322,6 +329,7 @@ proc consume(p: Parser, kind: TokenKind, message: string): Token =
 # Объявления функций парсинга
 proc expression(p: Parser): Node
 proc statement(p: Parser): Node
+proc parseArgument(p: Parser): Node
 proc parseBlock(p: Parser): Node
 proc parsePackBody(p: Parser): Node
 proc functionDeclaration(p: Parser): Node
@@ -339,7 +347,86 @@ proc returnStatement(p: Parser): Node
 proc expressionStatement(p: Parser): Node
 
 # Парсинг выражений
+proc parseArguments(p: Parser): seq[Node]
+proc primary(p: Parser): Node
+
+proc parseArgument(p: Parser): Node =
+  ## Парсит один аргумент (может быть именованным или позиционным)
+  
+  # Пропускаем переносы строк
+  while p.match(tkNewline): discard
+  
+  # Проверяем на именованный аргумент (identifier: value)
+  if p.check(tkIdentifier):
+    let checkpoint = p.current
+    let nameToken = p.advance()
+    
+    # Пропускаем переносы строк после имени
+    while p.match(tkNewline): discard
+    
+    if p.match(tkAssign):
+      # Это именованный аргумент
+      while p.match(tkNewline): discard # Пропускаем переносы после двоеточия
+      
+      let value = p.primary()
+      
+      # Создаем узел именованного аргумента
+      let namedArg = newNode(nkAssign)
+      namedArg.assignOp = "="
+      namedArg.declType = dtNone
+      
+      let target = newNode(nkIdent)
+      target.ident = nameToken.lexeme
+      target.line = nameToken.line
+      target.column = nameToken.column
+      
+      namedArg.assignTarget = target
+      namedArg.assignVal = value
+      namedArg.line = nameToken.line
+      namedArg.column = nameToken.column
+      
+      return namedArg
+    else:
+      # Это обычный аргумент, откатываемся
+      p.current = checkpoint
+      return p.primary()
+  else:
+    # Позиционный аргумент
+    return p.primary()
+
+proc parseArguments(p: Parser): seq[Node] =
+  ## Парсит аргументы функций и инициализаций с поддержкой именованных параметров
+  result = @[]
+  
+  # Пропускаем возможные переносы строк перед первым аргументом
+  while p.match(tkNewline): discard
+  
+  if p.check(tkRParen):
+    return result # Пустой список аргументов
+  
+  # Парсим первый аргумент
+  let firstArg = p.parseArgument()
+  if firstArg != nil:
+    result.add(firstArg)
+  
+  # Парсим остальные аргументы через запятую
+  while p.match(tkComma):
+    # Пропускаем возможные переносы строк после запятой
+    while p.match(tkNewline): discard
+    
+    if p.check(tkRParen):
+      break # Завершаем если встретили закрывающую скобку
+    
+    let arg = p.parseArgument()
+    if arg != nil:
+      result.add(arg)
+  
+  # Пропускаем возможные переносы строк перед закрывающей скобкой
+  while p.match(tkNewline): discard
+
 proc primary(p: Parser): Node =
+  # Пропускаем переносы строк в начале
+  
   if p.match(tkNumber):
     let token = p.previous()
     result = newNode(nkNumber)
@@ -356,6 +443,38 @@ proc primary(p: Parser): Node =
     result.column = token.column
     return result
 
+  if p.match(tkFormatString):
+    let token = p.previous()
+    let parts = token.lexeme.split(":", 1) # Разделяем форматтер и содержимое
+    
+    result = newNode(nkFormatString) # Нужно добавить этот тип в NodeKind
+    result.formatType = parts[0]     # Тип форматтера (fmt, custom, etc.)
+    result.formatContent = parts[1]  # Содержимое строки
+    result.line = token.line
+    result.column = token.column
+    return result
+  
+  # Булевы значения
+  if p.match(tkTrue):
+    let token = p.previous()
+    result = newNode(nkBool)
+    result.boolVal = true
+    result.line = token.line
+    result.column = token.column
+    return result
+    
+  if p.match(tkFalse):
+    let token = p.previous()
+    result = newNode(nkBool)
+    result.boolVal = false
+    result.line = token.line
+    result.column = token.column
+    return result
+
+  # Лямбда-функции
+  if p.check(tkLambda):
+    return p.lambdaDeclaration()
+
   if p.match(tkIdentifier):
     let token = p.previous()
     result = newNode(nkIdent)
@@ -365,6 +484,9 @@ proc primary(p: Parser): Node =
     var expr = result
 
     while true:
+      # Пропускаем переносы строк между операциями
+      while p.match(tkNewline): discard
+      
       # Доступ к элементам массива [index]
       if p.match(tkLBracket):
         let index = p.expression()
@@ -375,7 +497,7 @@ proc primary(p: Parser): Node =
         access.line = token.line
         access.column = token.column
         expr = access
-        
+
       # Доступ к полям через точку obj.field
       elif p.match(tkDot):
         let name = p.consume(tkIdentifier, "Expected property name after '.'")
@@ -386,21 +508,15 @@ proc primary(p: Parser): Node =
         prop.column = name.column
         expr = prop
         
-      # Вызов методов obj.method()
+      # Вызов методов obj.method() с новой системой аргументов
       elif p.match(tkLParen):
-        var args: seq[Node] = @[]
-        if not p.check(tkRParen):
-          let arg = p.expression()
-          if arg != nil:
-            args.add(arg)
-          while p.match(tkComma):
-            let nextArg = p.expression()
-            if nextArg != nil:
-              args.add(nextArg)
+        let args = p.parseArguments()
         discard p.consume(tkRParen, "Expected ')' after arguments")
         let call = newNode(nkCall)
         call.callFunc = expr
         call.callArgs = args
+        call.line = token.line
+        call.column = token.column
         expr = call
 
       # Срезы массивов arr[1..5]
@@ -432,14 +548,21 @@ proc primary(p: Parser): Node =
   if p.match(tkLBracket):
     var elements: seq[Node] = @[]
     
+    # Пропускаем переносы строк после открывающей скобки
+    while p.match(tkNewline): discard
+    
     if not p.check(tkRBracket):
       # Первый элемент
-      elements.add(p.expression())
+      elements.add(p.primary())
       
       # Остальные элементы через запятую
       while p.match(tkComma):
-        elements.add(p.expression())
+        while p.match(tkNewline): discard
+        if p.check(tkRBracket): break
+        elements.add(p.primary())
     
+    # Пропускаем переносы строк перед закрывающей скобкой
+    while p.match(tkNewline): discard
     discard p.consume(tkRBracket, "Expected ']' after array elements")
     
     result = newNode(nkArray)
@@ -447,7 +570,9 @@ proc primary(p: Parser): Node =
     return result
 
   if p.match(tkLParen):
+    while p.match(tkNewline): discard
     let expr = p.expression()
+    while p.match(tkNewline): discard
     discard p.consume(tkRParen, "Expected ')' after expression")
     result = newNode(nkGroup)
     result.groupExpr = expr
@@ -628,29 +753,79 @@ proc logicalOr(p: Parser): Node =
   return expr
 
 proc assignment(p: Parser): Node =
-  # Проверяем наличие типа в угловых скобках
-  var typeProps: seq[Node] = @[]
   var declType = dtNone
   
-  if p.check(tkTypeCheck):
-    discard p.consume(tkTypeCheck, "Expected '<'")
-    let typeName = p.consume(tkIdentifier, "Expected type name").lexeme
+  # Проверяем def/val
+  declType = if p.match(tkDef):    dtDef
+             elif p.match(tkVal):  dtVal
+             else:                 dtNone
+
+  # Если это объявление переменной, парсим name : Type
+  if declType != dtNone:
+    # Ожидаем имя переменной
+    let nameToken = p.consume(tkIdentifier, "Expected variable name after 'def'/'val'")
     
-    let typeCheck = newNode(nkTypeCheck)
-    typeCheck.checkType = typeName
-
-    if p.match(tkTypeColon):
+    var varType = ""
+    var typeModifier = '\0'
     
-      let code = p.consume(tkTypeFunc, "Expected type check code").lexeme
-      typeCheck.checkFunc = code
-      discard p.consume(tkTypeEnd, "Expected '>'")
-      typeProps.add(typeCheck)
+    # Проверяем аннотацию типа
+    if p.match(tkColon):
+      # Проверяем модификаторы типа
+      if p.match(tkBang):
+        typeModifier = '!'
+      elif p.match(tkQuestion):
+        typeModifier = '?'
 
-  # Стандартная проверка def/val если нет типа
-  declType = if p.match(tkDef):   dtDef
-            elif p.match(tkVal):  dtVal
-            else:                 dtNone
+      # Получаем тип
+      varType = p.consume(tkIdentifier, "Expected type name after ':'").lexeme
+      
+      # Обработка сложных типов (ptr, ref, generic)
+      if varType in ["ptr", "ref"] and p.check(tkIdentifier):
+        varType &= " " & p.advance().lexeme
+      
+      if p.match(tkLBracket):
+        varType &= "["
+        var bracketDepth = 1
+        while bracketDepth > 0 and not p.isAtEnd():
+          if p.match(tkLBracket):
+            bracketDepth += 1
+            varType &= "["
+          elif p.match(tkRBracket):
+            bracketDepth -= 1
+            varType &= "]"
+          else:
+            varType &= p.advance().lexeme
+    
+    # Ожидаем знак присваивания
+    let assignOp = p.consume(tkAssign, "Expected '=' after variable declaration")
+    
+    while p.match(tkNewline): discard
 
+    # Парсим значение
+    let value = if p.check(tkLambda): p.lambdaDeclaration()
+                elif p.check(tkIf):   p.ifStatement()
+                else:                 p.assignment()
+    
+    # Создаем узел присваивания
+    let assign = newNode(nkAssign)
+    assign.declType = declType
+    assign.assignOp = "="
+    
+    let target = newNode(nkIdent)
+    target.ident = nameToken.lexeme
+    target.line = nameToken.line
+    target.column = nameToken.column
+    
+    assign.assignTarget = target
+    assign.assignVal = value
+    assign.varType = varType  # Сохраняем тип
+    assign.varTypeModifier = typeModifier
+    assign.line = assignOp.line
+    assign.column = assignOp.column
+    
+    return assign
+  
+  # Если не объявление переменной, парсим как обычно
   var expr = p.logicalOr()
 
   while true:
@@ -658,17 +833,14 @@ proc assignment(p: Parser): Node =
       let operator = p.previous()
       let nextToken = p.peek()
       
-      let value = if p.check(tkLambda):
-        p.lambdaDeclaration()
-      elif p.check(tkIf):
-        p.ifStatement()
-      else:
-        p.assignment()
+      let value = if p.check(tkLambda): p.lambdaDeclaration()
+      elif p.check(tkIf):               p.ifStatement()
+      else:                             p.assignment()
 
       if expr.kind == nkIdent:
         let assign = newNode(nkAssign)
         assign.declType = declType
-        
+
         assign.assignOp = case operator.kind
           of tkAssign:  "="
           of tkPlusEq:  "+="
@@ -679,7 +851,6 @@ proc assignment(p: Parser): Node =
         
         assign.assignTarget   = expr
         assign.assignVal      = value
-        assign.assignProps    = typeProps
         assign.line           = operator.line
         assign.column         = operator.column
 
@@ -735,10 +906,16 @@ proc parameter(p: Parser): Node =
           # Другие токены
           paramType &= p.advance().lexeme
   
+  # Дефолтное значение (опционально)
+  var defaultValue: Node = nil
+  if p.match(tkAssign):
+    defaultValue = p.expression()
+
   result = newNode(nkParam)
   result.paramName = name
   result.paramType = paramType
   result.paramTypeModifier = typeModifier
+  result.paramDefault = defaultValue 
   result.line = token.line
   result.column = token.column
   return result
@@ -1160,7 +1337,7 @@ proc lambdaDeclaration(p: Parser): Node =
   # Тип возвращаемого значения
   var returnType = ""
   var returnTypeModifier = '\0'
-  if p.match(tkRetType):
+  if p.match(tkColon):
     # Проверяем модификатор типа
     if p.match(tkBang):
       returnTypeModifier = '!'
@@ -1238,7 +1415,7 @@ proc functionDeclaration(p: Parser): Node =
   # Тип возвращаемого значения
   var returnType = ""
   var returnTypeModifier = '\0'
-  if p.match(tkRetType):
+  if p.match(tkColon):
     # Проверяем модификатор типа
     if p.match(tkBang):
       returnTypeModifier = '!'
@@ -1315,7 +1492,7 @@ proc methodDeclaration(p: Parser): Node =
   # Тип возвращаемого значения
   var returnType = ""
   var returnTypeModifier = '\0'
-  if p.match(tkRetType):
+  if p.match(tkColon):
     # Проверяем модификатор типа
     if p.match(tkBang):
       returnTypeModifier = '!'

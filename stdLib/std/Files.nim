@@ -520,7 +520,7 @@ proc findFiles*(directory: string, pattern: string = "*",
           result.add(file)
 
 proc findDirectories*(directory: string, pattern: string = "*", 
-                     recursive: bool = true): seq[string] =
+                      recursive: bool = true): seq[string] =
   result = @[]
   let regex = pattern.replace("*", ".*").re
   
@@ -643,6 +643,7 @@ when defined(windows):
     ## Мониторит изменения в директории (Windows)
     # Упрощенная реализация - в реальности нужно использовать WinAPI
     echo fmt"Watching directory: {path} (Windows implementation needed)"
+    # реализую потом, не первой необхадимости функция
 
 else:
   # Для Linux можно использовать inotify
@@ -915,7 +916,7 @@ proc getFileSystemInfo*(path: string): FileSystemInfo =
         totalSpace: totalBytes,
         freeSpace: totalFreeBytes,
         usedSpace: totalBytes - totalFreeBytes,
-        fileSystemType: "NTFS" # Упрощение
+        fileSystemType: "NTFS" # Упрощение, често не ебу есть ли на винде что то кроме NTFS, влом ради этого писать реализацию
       )
   else:
     var statvfs_info: Statvfs

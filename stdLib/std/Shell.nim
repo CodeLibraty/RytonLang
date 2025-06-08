@@ -77,12 +77,12 @@ proc runCmd*(command: string, config: ShellConfig = globalConfig): CommandResult
       success: false
     )
 
-proc runSilent*(command: string): bool =
+proc runCmdSilent*(command: string): bool =
   ## Выполняет команду без вывода, возвращает только успех/неудачу
   let result = runCmd(command)
   return result.success
 
-proc runOutput*(command: string): string =
+proc runCmdOutput*(command: string): string =
   ## Выполняет команду и возвращает только вывод
   let result = runCmd(command)
   return result.output

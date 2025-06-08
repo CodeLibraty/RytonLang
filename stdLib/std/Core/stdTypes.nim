@@ -1,5 +1,10 @@
 import std/[sets, tables]
 
+const
+  False*    = false
+  True*     = true
+  Void*     = nil
+
 type
   # Base types
   Float32*  = float32
@@ -18,7 +23,6 @@ type
   Bool*     = bool
   Char*     = char
   Byte*     = byte
-  Void*     = typeof(nil)
   Any*      = auto
   Int*      = int
   Lambda*   = proc (args: varargs[Any]) # сделать работу через дженэрик

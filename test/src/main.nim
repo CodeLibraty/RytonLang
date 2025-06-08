@@ -1,75 +1,45 @@
+# NC Ryton Compiler - v0.2.4      #
+# (с) 2025 CodeLibraty Foundation #
+#     This file is auto-generated #
+
 import os
 import classes
 
-# NC Ryton Compiler - v0.2.4          #
-# (с) 2025 CodeLibraty Foundation     #
-#     This file is auto-generated     #
-import std.Core.stdTypes
-import std.Core.stdModifiers
-import std.Core.stdFunctions
-import std.Shell
-proc changeDir*(dir: String) =
-  discard
-
-proc print*(text: String) =
-  discard
-
-proc runOutput*(cmd: String): Int =
-  discard
-
+import std/Core/stdTypes
+import std/Core/stdModifiers
+import std/Core/stdFunctions
+import std/Shell
+import std/Files
+import std/SysInfo
+import std/fStrings
+var userName: String = runCmdOutput("whoami")
 
 class DeltaShell:
-  method cmdRun*(cmd: String) {.mod, moss.} =
-    let command = cmd.split(" ")
-    if command[0] == "cd":
-      changeDir(command[1])
-    else:
-      print(runOutput(cmd))
+  method currentDir*(): String =
+    runCmdOutput("pwd").replace(f"/home/{userName}" , "~")
   
-  method DShell*(sas: String) =
+  method commandExecute*(command: String) =
+    let command = command.split(" ")
+    if command[0] == "cd":
+      print(runCmdOutput(f"cd {command[1]}" ))
+    else:
+      print(runCmdOutput(command.join(" ")))
+  
+  method UIShell*() =
     var command = " "
-    let sas = proc() =
-      discard
-
-    let sdas = proc(arg: Int): Int {.trace.} =
-      return arg * 10
-
     while true:
-      sleep(100)
-      command = input("> ")
+      pause(10)
+      command = input(f"{userName}#[{this.currentDir()}]> " )
       if command == "exit":
         break
+      elif command == """":
+        discard
       else:
-        this.cmdRun(command)
+        this.commandExecute(command)
   
-if value == 1:
-  print("1")
-elif value == 2:
-  print("2")
-elif (value == 3) and (value == 4):
-  print("3 and 4")
-elif (value == 5) or (value == 6):
-  print("5 or 6")
-elif (value >= 7 and value <= 10):
-  print("7..10")
-elif (value >= 11 and value < 15):
-  print("11...15")
-else:
-  print("else")
-proc test*(a: Int, b: Int) =
-  var aa = proc() =
-    var aa = proc() =
-      var aa = proc() =
-        var aa = proc() =
-          var aa = proc() =
-            var aa = proc() =
-              discard
+proc Main*() =
+  DeltaShell().UIShell()
 
 
 
-
-
-
-
-let shell = DeltaShell()
-shell.DShell("String ")
+Main()

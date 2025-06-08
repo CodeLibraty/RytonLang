@@ -3,16 +3,15 @@ import stdTypes
 
 # IO функции
 proc print*(args: varargs[string, `$`]) =
-  echo args.join(" ")
+  echo args.join("")
 
-proc input*(prompt: string = ""): string =
-  if prompt.len > 0:
-    stdout.write(prompt)
+proc input*(prompts: varargs[string, `$`]): string =
+  if prompts.len > 0:
+    stdout.write(prompts.join(""))
   result = readLine(stdin)
 
 # Конвертация типов
-proc toString*(x: auto): string =
-  $x
+proc toString*(x: auto): string = $x
 
 proc toInt*(s: string): Int =
   parseInt(s)
@@ -62,13 +61,6 @@ proc ceil*(x: Float): Int =
   ceil(x).int
 
 # Строковые функции
-
-proc join*(arr: Array[string], sep: string = ""): string =
-  arr.join(sep)
-
-proc replace*(s: string, old: string, new: string): string =
-  s.replace(old, new)
-
 proc trim*(s: string): string =
   s.strip()
 
@@ -220,3 +212,5 @@ proc invert*(matrix: Array[Array[Float]]): Array[Array[Float]] =
   for i in 0..<rows:
     for j in 0..<cols:
       result[i][j] = 1.0 / matrix[i][j]
+
+export join, replace, split

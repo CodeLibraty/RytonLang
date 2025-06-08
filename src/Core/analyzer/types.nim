@@ -37,7 +37,7 @@ type
     warnings*: seq[SemanticWarning]
     currentFunction*: string
     currentClass*: string
-    classTypes*: Table[string, seq[string]]  # Добавляем таблицу для хранения методов классов
+    classTypes*: Table[string, seq[string]]
 
 proc newScope*(name: string, parent: ref Scope = nil): ref Scope =
   result = new(Scope)

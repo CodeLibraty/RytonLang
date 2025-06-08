@@ -15,13 +15,13 @@ type
     tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkError, tkSwitch, tkWith
     tkLazy, tkData, tkTable, tkPrivate, tkSlots, tkImport, tkModule,
     tkNoop, tkOutPut, tkLambda, tkEach, tkFrom, tkTo, tkStep, tkWhere,
-    tkState, tkWhile, tkDefault, tkCase
+    tkState, tkWhile, tkDefault, tkCase, tkStruct, tkEnum
     
     # Операторы
     tkPlus, tkMinus, tkMul, tkDiv, tkAssign, tkEq, tkNe, tkLt, tkGt, tkLe, tkGe
     tkPlusEq, tkMinusEq, tkMulEq, tkDivEq, tkPipe, tkAnd, tkOr, tkNot, tkRightArrow, tkLeftArrow,
     tkDot, tkComma, tkColon, tkColonColon, tkSemicolon, tkQuestion, tkBang, tkPercent,
-    tkColonEq, tkTrue, tkFalse, tkDotDot, tkDotDotDot, tkRetType, tkModStart, tkModEnd,
+    tkColonEq, tkTrue, tkFalse, tkDotDot, tkDotDotDot, tkModStart, tkModEnd,
     tkPtr, tkRef, tkBar, tkDef, tkVal, tkFatArrow
 
     # Синтаксис свойств
@@ -36,7 +36,7 @@ type
     tkLParen, tkRParen, tkLBrace, tkRBrace, tkLBracket, tkRBracket
     
     # Литералы
-    tkString, tkNumber, tkIdentifier
+    tkString, tkFormatString, tkNumber, tkIdentifier
     
     # Специальные токены
     tkComment, tkNewline, tkEOF, tkUnknown
@@ -81,16 +81,16 @@ proc newLexer*(source: string): Lexer =
       "else":       tkElse,
       "for":        tkFor,
       "in":         tkIn,
+      "struct":     tkStruct,
+      "enum":       tkEnum,
       "infinit":    tkInfinit,
       "repeat":     tkRepeat,
       "try":        tkTry,
       "error":      tkError,
       "switch":     tkSwitch,
       "case":       tkCase,
-      "default":    tkDefault,
       "with":       tkWith,
       "lazy":       tkLazy,
-      "data":       tkData,
       "table":      tkTable,
       "private":    tkPrivate,
       "slots":      tkSlots,
@@ -101,8 +101,8 @@ proc newLexer*(source: string): Lexer =
       "to":         tkTo,
       "step":       tkStep,
       "where":      tkWhere,
-      "true":       tkTrue,
-      "false":      tkFalse,
+      "True":       tkTrue,
+      "False":      tkFalse,
       "and":        tkAnd,
       "or":         tkOr,
       "not":        tkNot,
@@ -188,15 +188,40 @@ proc scanNumber(self: Lexer) =
   
   self.addToken(tkNumber)
 
+proc scanFormatString(self: Lexer, formatter: string) =
+  self.context = lcExpression
+  var stringContent = ""
+  
+  # Сканируем содержимое строки
+  while self.peek() != '"' and not self.isAtEnd():
+    if self.peek() == '\n':
+      inc(self.line)
+      self.column = 1
+    stringContent.add(self.peek())
+    discard self.advance()
+  
+  if self.isAtEnd():
+    self.addToken(tkUnknown)
+    return
+  
+  discard self.advance() # Закрывающая кавычка
+  
+  # Создаем токен с информацией о форматтере и содержимом
+  self.addToken(tkFormatString, formatter & ":" & stringContent)
+
 proc scanIdentifier(self: Lexer) =
-  while self.peek().isAlphaNumeric() or self.peek() == '_' or self.peek() == '.':
-    if self.peek() == '.':
-      discard self.advance()
-      if not self.peek().isAlphaAscii():
-        break
+  while self.peek().isAlphaNumeric() or self.peek() == '_':
+
     discard self.advance()
 
   let text = self.source[self.start..<self.current]
+
+  # Проверяем, следует ли после идентификатора строка (форматтер)
+  if self.peek() == '"':
+    # Это форматированная строка с префиксом
+    discard self.advance() # Пропускаем кавычку
+    self.scanFormatString(text)
+    return
 
   # Проверяем контекст для правильной обработки ключевых слов
   case self.context
@@ -461,11 +486,8 @@ proc scanToken(self: Lexer) =
     of ':':
       if self.match('='):
         self.addToken(tkColonEq)
-      if not self.match(' '):
-        if self.match(':'):
+      elif self.match(':'):
           self.addToken(tkColonColon)
-        else:
-          self.addToken(tkRetType)
       else:
         self.addToken(tkColon)
       self.context = lcExpression

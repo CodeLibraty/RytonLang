@@ -1,8 +1,7 @@
 import macros, strutils, terminal
 
 # Функция для обработки стилевых тегов
-proc processStyleTags(text: string): string =
-  var result = ""
+proc processStyleTags*(text: string): string =
   var i = 0
   var styleStack: seq[string] = @[]
   
@@ -88,7 +87,8 @@ proc processStyleTags(text: string): string =
   if styleStack.len > 0:
     result.add $resetStyle
   
-  return result# Макрос для f-строк с поддержкой тегов и интерполяции
+  return result # Макрос для f-строк с поддержкой тегов и интерполяции
+
 macro f*(text: static string): string =
   var resultStr = ""
   var i = 0

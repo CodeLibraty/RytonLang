@@ -57,14 +57,6 @@ proc decreaseIndent(self: var CodeGenerator) =
   if self.indentLevel > 0:
     self.indentLevel -= 1
 
-proc emitHeaderComment(self: var CodeGenerator) =
-  ## Генерирует заголовочный комментарий файла
-  self.output.add(fmt"# Ryton Compiler : v{self.rytonVersion}" & "\n")
-  self.output.add(fmt"# Generated from: {self.currentFile}" & "\n")
-  self.output.add(fmt"# Timestamp: {now()}" & "\n")
-  self.output.add("\n")
-  self.currentNimLine += 4
-
 proc addImport(self: var CodeGenerator, moduleName: string) =
   self.importedModules.incl(moduleName)
 
@@ -164,6 +156,13 @@ proc generateExpression(self: var CodeGenerator, node: Node): string =
     # String literal
     return "\"" & node.strVal & "\""
 
+  of nkFormatString:
+    # Обрабатываем форматированные строки
+    let formatter = node.formatType
+    let content = node.formatContent
+
+    return fmt"""{formatter}"{content}" """
+
   of nkBool:
     # Boolean literal
     return if node.boolVal: "true" else: "false"
@@ -196,16 +195,20 @@ proc generateExpression(self: var CodeGenerator, node: Node): string =
   of nkAssign:
     # Assignment
     let target = self.generateExpression(node.assignTarget)
-    let value = self.generateExpression(node.assignVal)
+    let value  = self.generateExpression(node.assignVal)
+
+    var noVarType = false
+    let varType = node.varType
+    if varType == "": noVarType = true
 
     # Handle different assignment operators
     let op = case node.assignOp
-      of "=": "="
-      of "+=": "+="
-      of "-=": "-="
-      of "*=": "*="
-      of "/=": "/="
-      else: "="
+      of "=":   "="
+      of "+=":  "+="
+      of "-=":  "-="
+      of "*=":  "*="
+      of "/=":  "/="
+      else:     "="
 
     let prefix = case node.declType
       of dtDef: "var" # def в Ryton -> var в Nim
@@ -221,18 +224,23 @@ proc generateExpression(self: var CodeGenerator, node: Node): string =
         let lines = prop.checkFunc.split("\n")
         var code: string
 
-        for line in lines: code.add(self.indent() & line.strip(
-            trailing = false) & "\n")
+        for line in lines: code.add(self.indent() & line.strip(trailing = false) & "\n")
 
         typeCheck = fmt"if not isType({target}, {prop.checkType}):{code}"
         self.decreaseIndent()
 
     # Генерируем как единый блок
     if prefix.len > 0:
-      if typeCheck.len > 0:
-        result = fmt"{prefix} {target} {op} {value}" & "\n" & self.indent() & typeCheck
+      if noVarType == false:
+        if typeCheck.len > 0:
+          result = fmt"{prefix} {target}: {varType} {op} {value}" & "\n" & self.indent() & typeCheck
+        else:
+          result = fmt"{prefix} {target}: {varType} {op} {value}"
       else:
-        result = fmt"{prefix} {target} {op} {value}"
+        if typeCheck.len > 0:
+          result = fmt"{prefix} {target} {op} {value}" & "\n" & self.indent() & typeCheck
+        else:
+          result = fmt"{prefix} {target} {op} {value}"
     else:
       if typeCheck.len > 0:
         result = fmt"{target} {op} {value}" & "\n" & self.indent() & typeCheck
@@ -281,6 +289,11 @@ proc processParameters(self: var CodeGenerator, params: seq[Node]): tuple[paramS
       else:
         paramStr.add(param.paramType)
 
+    # Обработка дефолтного значения
+    if param.paramDefault != nil:
+      let defaultExpr = self.generateExpression(param.paramDefault)
+      paramStr.add(" = " & defaultExpr)
+    
     paramStrings.add(paramStr)
 
   return (paramStrings, nilChecks)
@@ -602,7 +615,7 @@ proc generateInfinitStatement(self: var CodeGenerator, node: Node) =
   # Generate an infinite loop with delay
   self.emitLine("while true:")
   self.increaseIndent()
-  self.emitLine(fmt"sleep({delay})")
+  self.emitLine(fmt"pause({delay})")
   self.generateBlock(node.infBody)
   self.decreaseIndent()
 
@@ -732,9 +745,10 @@ proc generateProgram(self: var CodeGenerator, node: Node): string =
   self.indentLevel = 0
   self.importedModules = initHashSet[string]()
 
-  self.emitLine(fmt"# NC Ryton Compiler - v{self.rytonVersion}          #")
-  self.emitLine(fmt"# (с) 2025 CodeLibraty Foundation     #")
-  self.emitLine(fmt"#     This file is auto-generated     #")
+  var rytonCompiler: string
+  rytonCompiler.add(fmt"# NC Ryton Compiler - v{self.rytonVersion}      #" & "\n")
+  rytonCompiler.add("# (с) 2025 CodeLibraty Foundation #\n")
+  rytonCompiler.add("#     This file is auto-generated #\n\n")
 
   # Generate statementse
   for stmt in node.stmts:
@@ -742,7 +756,7 @@ proc generateProgram(self: var CodeGenerator, node: Node): string =
 
   # Prepend imports
   let imports = self.generateImports()
-  return imports & "\n\n" & self.output
+  return rytonCompiler & imports & "\n\n" & self.output & "\n\n" & "Main()"
 
 proc generateNimCode*(ast: Node): string =
   ## Generates Nim code from the given AST

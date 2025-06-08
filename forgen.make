@@ -32,5 +32,5 @@ nim = "2.2.2"
 
 [tasks.run]
 "1" = "ryton_debug build src" 
-"2" = "nim c --path:~/projects/CLI/RytonLang/stdLib -d:debug --debuginfo --linedir:on -o:test/bin/main test/src/main.nim"
+"2" = "nim c --cc:clang --path:~/projects/CLI/RytonLang/stdLib -d:debug --debuginfo --linedir:on -o:test/bin/main test/src/main.nim"
 "3" = "test/bin/main"

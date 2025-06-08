@@ -75,19 +75,19 @@ proc analyzeExpression*(self: SemanticAnalyzer, node: Node): string =
           self.markSymbolUsed(node.propObj.ident)
           return "method"
         else:
-          # ДОБАВЛЯЕМ: проверка встроенных методов для базовых типов
-          if objSymbol.symbolType == "string" and node.propName in ["split", "length", "substring"]:
+          # UFCS: ищем функцию с именем node.propName
+          let funcSymbol = self.findSymbol(node.propName)
+          if funcSymbol.name != "" and funcSymbol.kind == skFunction:
             self.markSymbolUsed(node.propObj.ident)
-            return "method"
-          elif objSymbol.symbolType == "int" and node.propName in ["toString", "abs"]:
-            self.markSymbolUsed(node.propObj.ident)
+            self.markSymbolUsed(node.propName)
             return "method"
           else:
             self.addError(
-              fmt"Method '{node.propName}' not found in class '{objSymbol.symbolType}'",
+              fmt"Method or function '{node.propName}' not found for type '{objSymbol.symbolType}'",
               node.line, node.column, "UndefinedMethod"
             )
             return "unknown"
+
       else:
         self.addError(
           fmt"Undefined object '{node.propObj.ident}'",

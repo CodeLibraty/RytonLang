@@ -3,52 +3,34 @@ module import {
     std.Core.stdModifiers
     std.Core.stdFunctions
     std.Shell
+    std.Files
+    std.SysInfo
+    std.fStrings
 }
 
-// Copyright (c) 2025, CodeLibraty Foundation
-// ! this is a test file for testing the compiler
+def userName:String = runCmdOutput("whoami")
 
-func changeDir(dir: String) => noop
-func print(text: String) => noop
-func runOutput(cmd: String):Int => noop
+pack DeltaShell { 
+    func currentDir:String => runCmdOutput("pwd").replace(f"/home/{userName}", "~")
 
-pack DeltaShell {
-    func cmdRun(cmd: String) !(mod, moss) {
-        val command = cmd.split(' ')
-        if command[0] == "cd" {
-            changeDir(command[1])
-        } else => print(runOutput(cmd))
+    func commandExecute(command: String) {
+        val command = command.split(" ")
+        if command[0] == "cd" => print(runCmdOutput(f"cd {command[1]}"))
+        else => print(runCmdOutput(command.join(" ")))
     }
 
-    func DShell(sas: String) {
-        <Int> def command = " "
-        <Int> val sas = lambda => noop
-        <Int> val sdas = lambda(arg: Int):Int !(trace) {
-            output arg * 10
-        }
-        infinit 100 {
-            command = input("> ")
+    func UIShell {
+        def command = " "
+        infinit 10 {
+            command = input(f"{userName}#[{this.currentDir()}]> ")
             if command == "exit" => break
-            else => this.cmdRun(command)
+            elif command == "" => noop
+            else => this.commandExecute(command)
         }
     }
 }
 
-switch value {
-    case 1 => print("1")
-    case 2 {
-        print("2")
-    }
-    case 3 and 4 => print("3 and 4")
-    case 5 or 6 => print("5 or 6")
-    case 7..10 => print("7..10")
-    case 11...15 => print("11...15")
-    else => print("else")
-}
-
-
-val shell = DeltaShell()
-shell.DShell("String ")
+func Main => DeltaShell().UIShell()
 
 </
 // not work structure
