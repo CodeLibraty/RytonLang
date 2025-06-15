@@ -10,7 +10,8 @@ import std/Core/stdModifiers
 import std/Core/stdFunctions
 import std/Shell
 import std/Files
-import std/SysInfo
+import std/Info
+import std/Paths
 import std/fStrings
 var userName: String = runCmdOutput("whoami")
 
@@ -21,18 +22,29 @@ class DeltaShell:
   method commandExecute*(command: String) =
     let command = command.split(" ")
     if command[0] == "cd":
-      print(runCmdOutput(f"cd {command[1]}" ))
+      if len(command) == 1:
+        changeDir(f"/home/{userName}" )
+      else:
+        let fullCurrentPath = runCmdOutput("pwd")
+        let dir = f"{fullCurrentPath}/{command[1]}" 
+        if isDirectory(dir) == false:
+          print(f"<red|bold>Error</red|bold>: Directory <italic>`{dir}`</italic> not found." )
+        else:
+          changeDir(dir)
+    elif command[0] == "cls":
+      if runCmdSilent("clear") == false:
+        print("<red|bold>Error</red|bold>: Command execute failure.")
     else:
-      print(runCmdOutput(command.join(" ")))
+      runCmdOutput(command.join(" ")).print()
   
   method UIShell*() =
     var command = " "
     while true:
       pause(10)
-      command = input(f"{userName}#[{this.currentDir()}]> " )
+      command = input(f"<green>{userName}<bold>#</bold></green>[<blue|italic>{this.currentDir()}</blue|italic>]> " )
       if command == "exit":
         break
-      elif command == """":
+      elif command == " ":
         discard
       else:
         this.commandExecute(command)

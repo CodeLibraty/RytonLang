@@ -51,7 +51,7 @@ proc buildJs() =
 proc generateDocs() =
   createDirIfNotExists(DocsDir)
   
-  let cmd = fmt"nim doc --project --index:on --outdir:{DocsDir} {SrcDir}/main.nim"
+  let cmd = fmt"nim doc --project --index:on --outdir:{DocsDir} {SrcDir}/ryton.nim"
   if runCommand(cmd):
     echo fmt"Documentation generated in {DocsDir}"
   else:

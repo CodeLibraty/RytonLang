@@ -1,59 +1,67 @@
 # Ryton Programming Language
 
-Ryton - это современный язык программирования общего назначения, разработанный для создания надежного и эффективного программного обеспечения. Язык сочетает в себе простоту использования с мощными возможностями.
+`EN`: Ryton is a modern general-purpose programming language designed to create reliable and efficient software. The language combines ease of use with powerful features.
 
-## Основные принципы
+`RU`: Ryton - это современный язык программирования общего назначения, предназначенный для создания надежного и эффективного программного обеспечения. Язык объединяет простоту использования с мощными возможностями.
 
-- Простота и читаемость кода
-- Безопасность типов
-- Эффективность выполнения
-- Модульность и переиспользование кода
+## Basic principles
 
-## Парадигмы
+- Simplicity and readability of the code
+- Type safety
+- Performance efficiency
+- Modularity and reuse of code
 
-- Объектно-ориентированное программирование
-- Функциональное программирование
-- Процедурное программирование
+## Paradigms
 
-## Ключевые особенности
+- Object-oriented programming
+- Functional programming
+- Procedural programming
 
-- Статическая типизация с выводом типов
-- Система пакетов для организации кода
-- Встроенная обработка ошибок
-- Поддержка функций высшего порядка
-- Эффективное управление памятью
-- Компиляция в Nim для оптимальной производительности
+## Key Features
 
-## Области применения
+- Static typing with type inference
+- A package system for code organization
+- Built-in error handling
+- Support for higher-order functions
+- Efficient memory management
+- Compile to Nim for optimal performance
+- Able to use libraries in the Nim language
 
-- Системное программирование
-- Веб-разработка
-- Научные вычисления
-- Разработка приложений
+## Application areas
 
-## Инструментарий
+- System programming
+- Web development
+- Scientific computing
+- Application development
 
-- Компилятор с оптимизациями
-- Система управления пакетами
-- Инструменты отладки
-- Средства тестирования
+## Toolkit
 
-## Философия
+- Compiler with optimizations
+- Package management system
+- Debugging tools
+- Testing tools
 
-Ryton стремится предоставить разработчикам инструмент, который сочетает в себе производительность низкоуровневых языков с удобством высокоуровневых абстракций.
+## Examples  
 
-## Info about Ryton
-- [Russian](docs/ru/comingsoon.md)
-- [English](docs/en/comingsoon.md)
+` The examples are not ready yet! `
 
-## Documenation
-- [Russian](docs/ru/FullRytonDocumentation/Base/Welcom.md)
-- [English](docs/en/FullRytonDocumentation/Base/Welcom.md)
+- Hello Worlds:
+  1. [Hello World(1)](./examples/hello_world_1.ry)
+  2. [Hello World(2)](./examples/hello_world_2.ry)
+  3. [Hello World(3)](./examples/hello_world_3.ry)
 
-## Contributing
-- Coming Soon
--  //  [Russian](docs/ru/contributing.md)
--  //  [English](docs/en/contributing.md)
+- Math:
+  1. [fibonachi](./examples/fibonachi.ry)
+  2. [factorial](./examples/factorial.ry)
+
+- OOP:
+  1. [Classes](./examples/classes.ry)
+  2. [Polymorphism](./examples/polymorphism.ry)
+
+
+## Philosophy
+
+Ryton aims to provide developers with a tool that combines the performance of low-level languages with the convenience of high-level abstractions.
 
 ## License
  - MIT

@@ -17,14 +17,14 @@ type
     shell*: string
 
 # Глобальная конфигурация
-var globalConfig* = ShellConfig(
+var globalShellConfig* = ShellConfig(
   workingDir: getCurrentDir(),
   env: newStringTable(),
   timeout: 0,
   shell: when defined(windows): "cmd.exe" else: "/bin/bash"
 )
 
-proc runCmd*(command: string, config: ShellConfig = globalConfig): CommandResult =
+proc runCmd*(command: string, config: ShellConfig = globalShellConfig): CommandResult =
   ## Выполняет команду и возвращает результат
   let startTime = cpuTime()
   
@@ -89,18 +89,18 @@ proc runCmdOutput*(command: string): string =
 
 proc changeDir*(path: string) =
   ## Устанавливает рабочую директорию для команд
-  globalConfig.workingDir = path
+  globalShellConfig.workingDir = path
 
 proc setTimeout*(seconds: int) =
   ## Устанавливает таймаут для команд
-  globalConfig.timeout = seconds
+  globalShellConfig.timeout = seconds
 
 proc setEnv*(key, value: string) =
   ## Добавляет переменную окружения
-  globalConfig.env[key] = value
+  globalShellConfig.env[key] = value
 
 proc clearEnv*() =
   ## Очищает переменные окружения
-  globalConfig.env = newStringTable()
+  globalShellConfig.env = newStringTable()
 
 
