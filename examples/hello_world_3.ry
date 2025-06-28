@@ -1,0 +1,7 @@
+pack Programm {
+    func Hi {
+        print("Hello, World!")
+    }
+}
+
+func Main => Programm().Hi()

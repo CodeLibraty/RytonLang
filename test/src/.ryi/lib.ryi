@@ -1,0 +1,1 @@
+func pub len(number: Int): Void

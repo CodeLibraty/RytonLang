@@ -15,7 +15,12 @@ type
     nkPackDef,        # Определение класса (pack)
     nkInit,           # init
     nkParam,          # Параметр функции
-    
+    nkStructDef,      # Определение структуры
+    nkEnumDef,        # Определение перечисления
+    nkEnumVariant,    # Вариант перечисления
+    nkFieldDef,       # Поле структуры
+    nkStructInit,     # Инициализация структуры
+
     # Управляющие конструкции
     nkIf,             # Условный оператор
     nkFor,            # Цикл for
@@ -49,6 +54,8 @@ type
     nkFormatString,   # Форматированная строка
     nkBool,           # Булево значение
     nkArray,          # Массив
+    nkTable,          # Таблица/словарь
+    nkTablePair,      # Пара ключ-значение
     nkTypeCheck,      # Типо-повденческий контроль
     nkArrayAccess,    # Доступ к элементам массива [index]
     nkSlice,          # Срезы массивов [start..end]
@@ -124,7 +131,30 @@ type
       paramType*: string
       paramTypeModifier*: char
       paramDefault*: Node
+
+    of nkStructDef:
+      structName*: string
+      structFields*: seq[Node]
+      structMethods*: seq[Node]
     
+    of nkEnumDef:
+      enumName*: string
+      enumVariants*: seq[Node]
+      enumMethods*: seq[Node]
+    
+    of nkEnumVariant:
+      variantName*: string
+      variantValue*: Node  # может быть nil для автоматической нумерации
+    
+    of nkFieldDef:
+      fieldName*: string
+      fieldType*: string
+      fieldDefault*: Node  # может быть nil
+    
+    of nkStructInit:
+      structType*: string
+      structArgs*: seq[Node]  # именованные аргументы
+  
     of nkIf:
       ifCond*: Node
       ifThen*: Node
@@ -233,6 +263,13 @@ type
     of nkArray:
       elements*: seq[Node]
 
+    of nkTable:
+      tablePairs*: seq[Node]    # Пары ключ-значение
+    
+    of nkTablePair:
+      pairKey*: Node           # Ключ
+      pairValue*: Node         # Значение
+
     of nkArrayAccess:
       array*: Node
       index*: Node
@@ -335,6 +372,10 @@ proc parsePackBody(p: Parser): Node
 proc functionDeclaration(p: Parser): Node
 proc lambdaDeclaration(p: Parser): Node
 proc packDeclaration(p: Parser): Node
+proc fieldDeclaration(p: Parser): Node
+proc structDeclaration(p: Parser): Node
+proc enumVariant(p: Parser): Node
+proc enumDeclaration(p: Parser): Node
 proc ifStatement(p: Parser): Node
 proc parseInitBlock(p: Parser): Node
 proc forStatement(p: Parser): Node
@@ -342,6 +383,8 @@ proc infinitStatement(p: Parser): Node
 proc repeatStatement(p: Parser): Node
 proc tryStatement(p: Parser): Node
 proc eventStatement(p: Parser): Node
+proc parseTable(p: Parser): Node
+proc parseTablePair(p: Parser): Node
 proc importStatement(p: Parser): Node
 proc returnStatement(p: Parser): Node
 proc expressionStatement(p: Parser): Node
@@ -544,6 +587,9 @@ proc primary(p: Parser): Node =
     result.line = token.line
     result.column = token.column
     return result
+
+  if p.match(tkLBrace):
+    return p.parseTable()
 
   if p.match(tkLBracket):
     var elements: seq[Node] = @[]
@@ -920,6 +966,83 @@ proc parameter(p: Parser): Node =
   result.column = token.column
   return result
 
+proc parseTablePair(p: Parser): Node =
+  # Пропускаем переносы строк
+  while p.match(tkNewline): discard
+  
+  # Парсим ключ (может быть идентификатором или строкой)
+  var key: Node
+  if p.check(tkIdentifier):
+    let token = p.advance()
+    key = newNode(nkIdent)
+    key.ident = token.lexeme
+    key.line = token.line
+    key.column = token.column
+  elif p.check(tkString):
+    let token = p.advance()
+    key = newNode(nkString)
+    key.strVal = token.lexeme
+    key.line = token.line
+    key.column = token.column
+  else:
+    p.errors.add("Expected identifier or string as table key")
+    return nil
+  
+  # Пропускаем переносы строк перед двоеточием
+  while p.match(tkNewline): discard
+  
+  # Ожидаем двоеточие
+  discard p.consume(tkColon, "Expected ':' after table key")
+  
+  # Пропускаем переносы строк после двоеточия
+  while p.match(tkNewline): discard
+  
+  # Парсим значение
+  let value = p.expression()
+  
+  # Создаем узел пары
+  result = newNode(nkTablePair)
+  result.pairKey = key
+  result.pairValue = value
+  result.line = key.line
+  result.column = key.column
+
+proc parseTable(p: Parser): Node =
+  result = newNode(nkTable)
+  result.tablePairs = @[]
+  
+  # Пропускаем переносы строк после открывающей скобки
+  while p.match(tkNewline): discard
+  
+  # Проверяем пустую таблицу
+  if p.check(tkRBrace):
+    discard p.consume(tkRBrace, "Expected '}' after empty table")
+    return result
+  
+  # Парсим первую пару ключ-значение
+  let firstPair = p.parseTablePair()
+  if firstPair != nil:
+    result.tablePairs.add(firstPair)
+  
+  # Парсим остальные пары через запятую
+  while p.match(tkComma):
+    # Пропускаем переносы строк после запятой
+    while p.match(tkNewline): discard
+    
+    # Проверяем завершение таблицы
+    if p.check(tkRBrace):
+      break
+    
+    let pair = p.parseTablePair()
+    if pair != nil:
+      result.tablePairs.add(pair)
+  
+  # Пропускаем переносы строк перед закрывающей скобкой
+  while p.match(tkNewline): discard
+  
+  discard p.consume(tkRBrace, "Expected '}' after table")
+  return result
+
 proc importStatement(p: Parser): Node =
   result = newNode(nkImport)
   result.imports = @[]
@@ -1036,23 +1159,38 @@ proc forStatement(p: Parser): Node =
   
   # Проверяем тип диапазона
   var inclusive = true
-  if p.match(tkDotDot):
+  var rangeEnd: Node
+
+  if p.match(tkDotDot):       
     inclusive = true
-  elif p.match(tkDotDotDot):
+    rangeEnd = p.expression()  # Добавляем парсинг конечного выражения
+  elif p.match(tkDotDotDot):  
     inclusive = false
+    rangeEnd = p.expression()  # Добавляем парсинг конечного выражения
   else:
-    p.errors.add("Expected range operator '..' or '...'")
-    return nil
-  
-  # Конечное выражение диапазона
-  let rangeEnd = p.expression()
+    # Если нет диапазона, то это итерация по коллекции
+    result = newNode(nkFor)
+    result.forVar = varName
+    result.forRange = (
+      start: rangeStart,
+      inclusive: true,
+      endExpr: nil  # nil означает итерацию по коллекции
+    )
+    result.forBody = p.parseBlock()
+    result.line = token.line
+    result.column = token.column
+    return result
   
   # Блок кода
   let body = p.parseBlock()
   
   result = newNode(nkFor)
   result.forVar = varName
-  result.forRange = (start: rangeStart, inclusive: inclusive, endExpr: rangeEnd)
+  result.forRange = (
+    start: rangeStart,
+    inclusive: inclusive,
+    endExpr: rangeEnd
+  )
   result.forBody = body
   result.line = token.line
   result.column = token.column
@@ -1572,6 +1710,125 @@ proc packDeclaration(p: Parser): Node =
   result.column = token.column
   return result
 
+proc fieldDeclaration(p: Parser): Node =
+  let nameToken = p.consume(tkIdentifier, "Expected field name")
+  let name = nameToken.lexeme
+  
+  discard p.consume(tkColon, "Expected ':' after field name")
+  
+  let fieldType = p.consume(tkIdentifier, "Expected field type").lexeme
+  
+  var defaultValue: Node = nil
+  if p.match(tkAssign):
+    defaultValue = p.expression()
+  
+  # Опциональная запятая (как в parseBlock логике)
+  discard p.match(tkComma)
+  
+  result = newNode(nkFieldDef)
+  result.fieldName = name
+  result.fieldType = fieldType
+  result.fieldDefault = defaultValue
+  result.line = nameToken.line
+  result.column = nameToken.column
+
+proc structDeclaration(p: Parser): Node =
+  let token = p.consume(tkStruct, "Expected 'struct' keyword")
+  let name = p.consume(tkIdentifier, "Expected struct name").lexeme
+  
+  discard p.consume(tkLBrace, "Expected '{' after struct name")
+  
+  var fields: seq[Node] = @[]
+  var methods: seq[Node] = @[]
+  
+  # Используем ту же логику что и в parseBlock
+  while not p.check(tkRBrace) and not p.isAtEnd():
+    # Пропускаем переносы строк
+    while p.match(tkNewline): discard
+    
+    # Проверяем что не достигли конца блока
+    if p.check(tkRBrace):
+      break
+    
+    # Парсим содержимое структуры
+    if p.check(tkFunc):
+      let meth = p.functionDeclaration()
+      if meth != nil:
+        methods.add(meth)
+    else:
+      let field = p.fieldDeclaration()
+      if field != nil:
+        fields.add(field)
+    
+    # Пропускаем переносы строк после элемента
+    while p.match(tkNewline): discard
+  
+  discard p.consume(tkRBrace, "Expected '}' after struct body")
+  
+  result = newNode(nkStructDef)
+  result.structName = name
+  result.structFields = fields
+  result.structMethods = methods
+  result.line = token.line
+  result.column = token.column
+
+proc enumVariant(p: Parser): Node =
+  let nameToken = p.consume(tkIdentifier, "Expected variant name")
+  let name = nameToken.lexeme
+  
+  var value: Node = nil
+  if p.match(tkAssign):
+    value = p.expression()
+  
+  # Опциональная запятая (как в parseBlock логике)
+  discard p.match(tkComma)
+  
+  result = newNode(nkEnumVariant)
+  result.variantName = name
+  result.variantValue = value
+  result.line = nameToken.line
+  result.column = nameToken.column
+
+proc enumDeclaration(p: Parser): Node =
+  let token = p.consume(tkEnum, "Expected 'enum' keyword")
+  let name = p.consume(tkIdentifier, "Expected enum name").lexeme
+  
+  discard p.consume(tkLBrace, "Expected '{' after enum name")
+  
+  var variants: seq[Node] = @[]
+  var methods: seq[Node] = @[]
+  
+  # Используем ту же логику что и в parseBlock
+  while not p.check(tkRBrace) and not p.isAtEnd():
+    # Пропускаем переносы строк
+    while p.match(tkNewline): discard
+    
+    # Проверяем что не достигли конца блока
+    if p.check(tkRBrace):
+      break
+    
+    # Парсим содержимое перечисления
+    if p.check(tkFunc):
+      let meth = p.functionDeclaration()
+      if meth != nil:
+        methods.add(meth)
+    else:
+      let variant = p.enumVariant()
+      if variant != nil:
+        variants.add(variant)
+    
+    # Пропускаем переносы строк после элемента
+    while p.match(tkNewline): discard
+  
+  discard p.consume(tkRBrace, "Expected '}' after enum body")
+  
+  result = newNode(nkEnumDef)
+  result.enumName = name
+  result.enumVariants = variants
+  result.enumMethods = methods
+  result.line = token.line
+  result.column = token.column
+
 # Парсинг операторов
 proc expressionStatement(p: Parser): Node =
   let expr = p.expression()
@@ -1655,7 +1912,14 @@ proc statement(p: Parser): Node =
   # Обработка объявлений пакетов (классов)
   if p.check(tkPack):
     return p.packDeclaration()
+
+  # Обработка структур данных
+  if p.check(tkStruct):
+    return p.structDeclaration()
   
+  if p.check(tkEnum):
+    return p.enumDeclaration()
+
   # Обработка условных операторов
   if p.check(tkIf):
     return p.ifStatement()

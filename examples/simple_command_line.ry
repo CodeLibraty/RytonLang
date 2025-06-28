@@ -1,0 +1,62 @@
+module import {
+    std.Core.stdTypes
+    std.Core.stdModifiers
+    std.Core.stdFunctions
+    std.Shell
+    std.Files
+    std.Info
+    std.Paths
+    std.fStrings
+}
+
+def userName:String = runCmdOutput("whoami")
+
+pack DeltaShell {
+    func currentDir:String => runCmdOutput("pwd").replace(f"/home/{userName}", "~")
+
+    func commandListDirectory {
+        val files = listDirectory(this.currentDir)
+
+        print("Files in <italic>`{this.currentDir}`</italic>:")
+        for file in files {
+            print(file)
+        }
+    }
+
+    func commandExecute(command: String) {
+        val command = command.split(" ")
+        if command[0] == "cd" {
+            if len(command) == 1 => changeDir(f"/home/{userName}")
+            else {
+                val fullCurrentPath = runCmdOutput("pwd")
+                val dir = f"{fullCurrentPath}/{command[1]}"
+                if isDirectory(dir) == False =>
+                    if command[1] == "~" =>
+                        changeDir(f"/home/{userName}")
+                    else =>
+                        print(f"<red|bold>Error</red|bold>: Directory <italic>`{dir}`</italic> not found.")
+                else =>
+                    changeDir(dir)
+            }
+        } elif command[0] == "cls" {
+            if runCmdSilent("clear") == False =>
+                print("<red|bold>Error</red|bold>: Command execute failure.")
+
+        } elif command[0] == "ls" {
+            this.commandListDirectory()
+        }
+        else => runCmdOutput(command.join(" ")).print()
+    }
+
+    func UIShell {
+        def command = " "
+        infinit 10 {
+            command = input(f"<green>{userName}<bold>#</bold></green>[<blue|italic>{this.currentDir()}</blue|italic>]> ")
+            if command == "exit" => break
+            elif command == " " => noop
+            else => this.commandExecute(command)
+        }
+    }
+}
+
+func Main => DeltaShell().UIShell()

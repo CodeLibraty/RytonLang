@@ -2,8 +2,8 @@
 # (с) 2025 CodeLibraty Foundation #
 #     This file is auto-generated #
 
-import os
 import classes
+
 
 import std/Core/stdTypes
 import std/Core/stdModifiers
@@ -13,44 +13,41 @@ import std/Files
 import std/Info
 import std/Paths
 import std/fStrings
-var userName: String = runCmdOutput("whoami")
 
-class DeltaShell:
-  method currentDir*(): String =
-    runCmdOutput("pwd").replace(f"/home/{userName}" , "~")
+class main:
+  method hi*() =
+    discard
   
-  method commandExecute*(command: String) =
-    let command = command.split(" ")
-    if command[0] == "cd":
-      if len(command) == 1:
-        changeDir(f"/home/{userName}" )
-      else:
-        let fullCurrentPath = runCmdOutput("pwd")
-        let dir = f"{fullCurrentPath}/{command[1]}" 
-        if isDirectory(dir) == false:
-          print(f"<red|bold>Error</red|bold>: Directory <italic>`{dir}`</italic> not found." )
-        else:
-          changeDir(dir)
-    elif command[0] == "cls":
-      if runCmdSilent("clear") == false:
-        print("<red|bold>Error</red|bold>: Command execute failure.")
-    else:
-      runCmdOutput(command.join(" ")).print()
-  
-  method UIShell*() =
-    var command = " "
-    while true:
-      pause(10)
-      command = input(f"<green>{userName}<bold>#</bold></green>[<blue|italic>{this.currentDir()}</blue|italic>]> " )
-      if command == "exit":
-        break
-      elif command == " ":
-        discard
-      else:
-        this.commandExecute(command)
-  
+type
+  Sas* = object
+    x*: Int
+    y*: Int
+    z*: Int
+
+proc newSas*(x: Int, y: Int, z: Int = 10): Sas =
+  result.x = x
+  result.y = y
+  result.z = z
+type
+  Status* = enum
+    Success
+    Error
+proc isOk*(this: Status, ): Bool =
+  return this == Success
+
+proc message*(this: Status, ): String =
+  if this == Success:
+    return "Operation completed"
+  elif this == Error:
+    return "Operation failed"
+
+var stat: Status = Success
+stat.message().print()
 proc Main*() =
-  DeltaShell().UIShell()
+  var mySas = newSas(x = 10, y = 20)
+  print(mySas.x)
+  print(mySas.y)
+  print(mySas.z)
 
 
 

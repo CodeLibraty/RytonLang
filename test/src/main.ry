@@ -9,144 +9,35 @@ module import {
     std.fStrings
 }
 
-def userName:String = runCmdOutput("whoami")
+struct myStruct {
+    x: Int,
+    y: Int,
+    z: Int = 10,
+}
 
-pack DeltaShell {
-    func currentDir:String => runCmdOutput("pwd").replace(f"/home/{userName}", "~")
-
-    func commandExecute(command: String) {
-        val command = command.split(" ")
-        if command[0] == "cd" {
-            if len(command) == 1 => changeDir(f"/home/{userName}")
-            else {
-                val fullCurrentPath = runCmdOutput("pwd")
-                val dir = f"{fullCurrentPath}/{command[1]}"
-                if isDirectory(dir) == False =>
-                    print(f"<red|bold>Error</red|bold>: Directory <italic>`{dir}`</italic> not found.")
-                else =>
-                    changeDir(dir)
-            }
-        } elif command[0] == "cls" {
-            if runCmdSilent("clear") == False {
-                print("<red|bold>Error</red|bold>: Command execute failure.")
-            }
-        }
-        else => runCmdOutput(command.join(" ")).print()
-    }
-
-    func UIShell {
-        def command = " "
-        infinit 10 {
-            command = input(f"<green>{userName}<bold>#</bold></green>[<blue|italic>{this.currentDir()}</blue|italic>]> ")
-            if command == "exit" => break
-            elif command == " " => noop
-            else => this.commandExecute(command)
+enum Status {
+    Success,
+    Error,
+    
+    func isOk: Bool => output this == Success
+    func message: String {
+        switch this {
+            case Success => output "Operation completed"
+            case Error => output "Operation failed"
         }
     }
 }
 
-func Main => DeltaShell().UIShell()
+func Main {
+    def stat:Status = Success
+    stat.message().print() 
 
-</
-// not work structure
-struct Person {
-    <String
-        val name = "Ryton"
-        def nonema = "As"
-    >
-    <Int
-        def age = 18
-        val age2 = 19
-    >
-}
-//
-
-
-def text = "Ers"; print(text)
-
-func Sas => 
-    func Sas1 => func Sas2 =>
-        func Sas3 =>
-            print()
-
-func sas { noop }
-
-func aa() { 
-    noop
+    def myStruct = newmyStruct(x = 10, y = 20)
+    print(myStruct.x)
+    print(myStruct.y)
+    print(myStruct.z)
 }
 
-def aa = lambda() => noop
-
-func nested => if a => if b => if c => print("ABC"); else => noop; else => noop; else => noop
-
-func MyFunc(arg: String):Bool !(trace) { noop }
-
-func factorial(n: Int):Int => if n <= 1 => output 1 
-else =>
-    output n * factorial(n - 1)
-
-func myFunction => if hi == True {
-    print("Hello World!")
-} else => noop
-
-func myFunction(name: ?String) => if name == "Ryton" {
-    while name == "Ryton" => print("Hello World!")
-}
-
-pack Parser => 
-    func parse(text: String) => 
-        while not text.empty {
-            if char.isDigit => parseNumber()
-            elif char.isLetter => parseWord()
-        }
-
-while True {
-    print("Hello World!")
-}
-
-while 1 == 18 and 2 == 2 or 3 == 3 => print("Я хочу пиццы")
-
-pack Simple => func simple => 
-    if name => if name => print("Simple nahuy")
-
-pack sas <- Par !(mode, ssaa, d) {
-    func ign => noop
-}
-
-pack Package {
-    init {
-        mu
-    }
-
-    func myFunction(name: !String) {
-        print("Hello World!", name)
-    }
-
-    func Main {
-        print("HI! I Ryton App")
-        <String> def name = input("Enter your name: ")
-        pause(1000)
-        
-        print("Hello ", name, "!")
-        <Int> def age = toInt(input("Enter your age: "))
-        pause(1000)
-        
-        if age < 18 => print("You are not old enough to enter this site!") 
-        elif age > 18 {
-            print("You are old enough to enter this site!")
-        } 
-        else => print("You old!") 
-
-        print("You are ", age)
-
-    }
-}
-
-def package = mysd.Package(sas, 10, "kdkd", [1, 2, 3])
-package.myFunction("sas")
-package.Main()
-
-/>
 </ planed syntax
     func main[T](@staticArg: Int, ->refArg: String, def myGeneric: T) {}
 

@@ -11,7 +11,8 @@ type
     parent*: SymbolTable
 
   SymbolKind* = enum
-    skVariable, skFunction, skPack, skParameter
+    skVariable, skFunction, skPack,
+    skStruct, skEnum, skField, skParameter
 
   Symbol* = ref object
     name*: string
@@ -28,6 +29,15 @@ type
     of skPack:
       parents*: seq[string]
       packModifiers*: seq[string]
+    of skStruct:
+      structFields*: seq[Symbol]
+      structMethods*: seq[Symbol]
+    of skEnum:
+      enumVariants*: seq[Symbol]
+      enumMethods*: seq[Symbol]
+    of skField:
+      fieldType*: string
+      fieldDefault*: string
     of skParameter:
       paramType*: string
 
@@ -77,6 +87,30 @@ method visitLambdaDef*(self: AstVisitor, node: Node) {.base.} =
 
 method visitPackDef*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.packBody)
+
+method visitStructDef*(self: AstVisitor, node: Node) {.base.} =
+  for field in node.structFields:
+    self.visit(field)
+  for meth in node.structMethods:
+    self.visit(meth)
+
+method visitEnumDef*(self: AstVisitor, node: Node) {.base.} =
+  for variant in node.enumVariants:
+    self.visit(variant)
+  for meth in node.enumMethods:
+    self.visit(meth)
+
+method visitEnumVariant*(self: AstVisitor, node: Node) {.base.} =
+  if node.variantValue != nil:
+    self.visit(node.variantValue)
+
+method visitFieldDef*(self: AstVisitor, node: Node) {.base.} =
+  if node.fieldDefault != nil:
+    self.visit(node.fieldDefault)
+
+method visitStructInit*(self: AstVisitor, node: Node) {.base.} =
+  for arg in node.structArgs:
+    self.visit(arg)
 
 method visitParam*(self: AstVisitor, node: Node) {.base.} =
   discard
@@ -211,6 +245,14 @@ method visitArrayAccess*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.array)
   self.visit(node.index)
 
+method visitTable*(self: AstVisitor, node: Node) {.base.} =
+  for pair in node.tablePairs:
+    self.visit(pair)
+
+method visitTablePair*(self: AstVisitor, node: Node) {.base.} =
+  self.visit(node.pairKey)
+  self.visit(node.pairValue)
+
 method visitSlice*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.sliceArray)
   self.visit(node.startIndex)
@@ -248,6 +290,11 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
   of nkFuncDef:           self.visitFuncDef(node)
   of nkLambdaDef:         self.visitLambdaDef(node)
   of nkPackDef:           self.visitPackDef(node)
+  of nkStructDef:         self.visitStructDef(node)
+  of nkEnumDef:           self.visitEnumDef(node)
+  of nkEnumVariant:       self.visitEnumVariant(node)
+  of nkFieldDef:          self.visitFieldDef(node)
+  of nkStructInit:        self.visitStructInit(node)
   of nkState:             self.visitState(node)
   of nkStateBody:         self.visitStateBody(node)
   of nkParam:             self.visitParam(node)
@@ -276,6 +323,8 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
   of nkFormatString:      self.visitFormatString(node)
   of nkBool:              self.visitBool(node)
   of nkArray:             self.visitArray(node)
+  of nkTable:             self.visitTable(node)
+  of nkTablePair:         self.visitTablePair(node)
   of nkTypeCheck:         self.visit(node)
   of nkArrayAccess:       self.visitArrayAccess(node)
   of nkSlice:             self.visitSlice(node) 
@@ -372,6 +421,115 @@ method transformPackDef*(self: AstTransformer, node: Node): Node {.base.} =
   result.packParents = node.packParents
   result.packMods = node.packMods
   result.packBody = body
+  result.line = node.line
+  result.column = node.column
+
+method transformStructDef*(self: AstTransformer, node: Node): Node {.base.} =
+  var newFields: seq[Node] = @[]
+  var newMethods: seq[Node] = @[]
+  var hasChanges = false
+  
+  for field in node.structFields:
+    let transformed = self.transform(field)
+    if transformed != field:
+      hasChanges = true
+    if transformed != nil:
+      newFields.add(transformed)
+  
+  for meth in node.structMethods:
+    let transformed = self.transform(meth)
+    if transformed != meth:
+      hasChanges = true
+    if transformed != nil:
+      newMethods.add(transformed)
+  
+  if not hasChanges:
+    return node
+  
+  result = newNode(nkStructDef)
+  result.structName = node.structName
+  result.structFields = newFields
+  result.structMethods = newMethods
+  result.line = node.line
+  result.column = node.column
+
+method transformEnumDef*(self: AstTransformer, node: Node): Node {.base.} =
+  var newVariants: seq[Node] = @[]
+  var newMethods: seq[Node] = @[]
+  var hasChanges = false
+  
+  for variant in node.enumVariants:
+    let transformed = self.transform(variant)
+    if transformed != variant:
+      hasChanges = true
+    if transformed != nil:
+      newVariants.add(transformed)
+  
+  for meth in node.enumMethods:
+    let transformed = self.transform(meth)
+    if transformed != meth:
+      hasChanges = true
+    if transformed != nil:
+      newMethods.add(transformed)
+  
+  if not hasChanges:
+    return node
+  
+  result = newNode(nkEnumDef)
+  result.enumName = node.enumName
+  result.enumVariants = newVariants
+  result.enumMethods = newMethods
+  result.line = node.line
+  result.column = node.column
+
+method transformEnumVariant*(self: AstTransformer, node: Node): Node {.base.} =
+  if node.variantValue == nil:
+    return node
+  
+  let transformedValue = self.transform(node.variantValue)
+  
+  if transformedValue == node.variantValue:
+    return node
+  
+  result = newNode(nkEnumVariant)
+  result.variantName = node.variantName
+  result.variantValue = transformedValue
+  result.line = node.line
+  result.column = node.column
+
+method transformFieldDef*(self: AstTransformer, node: Node): Node {.base.} =
+  if node.fieldDefault == nil:
+    return node
+  
+  let transformedDefault = self.transform(node.fieldDefault)
+  
+  if transformedDefault == node.fieldDefault:
+    return node
+  
+  result = newNode(nkFieldDef)
+  result.fieldName = node.fieldName
+  result.fieldType = node.fieldType
+  result.fieldDefault = transformedDefault
+  result.line = node.line
+  result.column = node.column
+
+method transformStructInit*(self: AstTransformer, node: Node): Node {.base.} =
+  var newArgs: seq[Node] = @[]
+  var hasChanges = false
+  
+  for arg in node.structArgs:
+    let transformed = self.transform(arg)
+    if transformed != arg:
+      hasChanges = true
+    if transformed != nil:
+      newArgs.add(transformed)
+  
+  if not hasChanges:
+    return node
+  
+  result = newNode(nkStructInit)
+  result.structType = node.structType
+  result.structArgs = newArgs
   result.line = node.line
   result.column = node.column
 
@@ -712,6 +870,12 @@ method transformNumber*(self: AstTransformer, node: Node): Node {.base.} =
   result.line = node.line
   result.column = node.column
 
+method transformBool*(self: AstTransformer, node: Node): Node {.base.} =
+  result = newNode(nkBool)
+  result.boolVal = node.boolVal
+  result.line = node.line
+  result.column = node.column
+
 method transformString*(self: AstTransformer, node: Node): Node {.base.} =
   result = newNode(nkString)
   result.strVal = node.strVal
@@ -725,9 +889,28 @@ method transformFormatString*(self: AstTransformer, node: Node): Node {.base.} =
   result.line = node.line
   result.column = node.column
 
-method transformBool*(self: AstTransformer, node: Node): Node {.base.} =
-  result = newNode(nkBool)
-  result.boolVal = node.boolVal
+method transformTable*(self: AstTransformer, node: Node): Node {.base.} =
+  var newPairs: seq[Node] = @[]
+  for pair in node.tablePairs:
+    let transformed = self.transform(pair)
+    if transformed != nil:
+      newPairs.add(transformed)
+  
+  result = newNode(nkTable)
+  result.tablePairs = newPairs
+  result.line = node.line
+  result.column = node.column
+
+method transformTablePair*(self: AstTransformer, node: Node): Node {.base.} =
+  let key = self.transform(node.pairKey)
+  let value = self.transform(node.pairValue)
+  
+  if key == nil or value == nil:
+    return nil
+  
+  result = newNode(nkTablePair)
+  result.pairKey = key
+  result.pairValue = value
   result.line = node.line
   result.column = node.column
 
@@ -799,6 +982,11 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
   of nkFuncDef:       return self.transformFuncDef(node)
   of nkLambdaDef:     return self.transformLambdaDef(node)
   of nkPackDef:       return self.transformPackDef(node)
+  of nkStructDef:     return self.transformStructDef(node)
+  of nkEnumDef:       return self.transformEnumDef(node)
+  of nkEnumVariant:   return self.transformEnumVariant(node)
+  of nkFieldDef:      return self.transformFieldDef(node)
+  of nkStructInit:    return self.transformStructInit(node)
   of nkState:         return self.transformState(node)
   of nkStateBody:     return self.transformStateBody(node)
   of nkParam:         return self.transformParam(node)
@@ -823,9 +1011,11 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
   of nkAssign:        return self.transformAssign(node)
   of nkIdent:         return self.transformIdent(node)
   of nkNumber:        return self.transformNumber(node)
+  of nkBool:          return self.transformBool(node)
   of nkString:        return self.transformString(node)
   of nkFormatString:  return self.transformFormatString(node)
-  of nkBool:          return self.transformBool(node)
+  of nkTable:         return self.transformTable(node)
+  of nkTablePair:     return self.transformTablePair(node)
   of nkTypeCheck:     return self.transformTypeCheck(node)
   of nkArray:         return self.transformArray(node)
   of nkArrayAccess:   return self.transformArrayAccess(node)
@@ -955,6 +1145,126 @@ method visitPackDef*(self: SymbolCollector, node: Node) =
   # Восстанавливаем предыдущую область видимости
   self.currentScope = previousScope
 
+method visitStructDef*(self: SymbolCollector, node: Node) =
+  # Создаем символы полей
+  var fieldSymbols: seq[Symbol] = @[]
+  for field in node.structFields:
+    let fieldSymbol = Symbol(
+      name: field.fieldName,
+      kind: skField,
+      fieldType: field.fieldType,
+      fieldDefault: if field.fieldDefault != nil: "has_default" else: "",
+      line: field.line,
+      column: field.column
+    )
+    fieldSymbols.add(fieldSymbol)
+  
+  # Создаем символы методов
+  var methodSymbols: seq[Symbol] = @[]
+  for meth in node.structMethods:
+    var paramSymbols: seq[Symbol] = @[]
+    for param in meth.funcParams:
+      let paramSymbol = Symbol(
+        name: param.paramName,
+        kind: skParameter,
+        paramType: param.paramType,
+        line: param.line,
+        column: param.column
+      )
+      paramSymbols.add(paramSymbol)
+    
+    let methodSymbol = Symbol(
+      name: meth.funcName,
+      kind: skFunction,
+      params: paramSymbols,
+      returnType: meth.funcRetType,
+      modifiers: meth.funcMods,
+      line: meth.line,
+      column: meth.column
+    )
+    methodSymbols.add(methodSymbol)
+  
+  # Создаем символ структуры
+  let structSymbol = Symbol(
+    name: node.structName,
+    kind: skStruct,
+    structFields: fieldSymbols,
+    structMethods: methodSymbols,
+    line: node.line,
+    column: node.column
+  )
+  
+  # Добавляем структуру в текущую область видимости
+  if not self.currentScope.define(structSymbol):
+    self.errors.add(fmt"Struct '{node.structName}' already defined at line {node.line}, column {node.column}")
+    return
+  
+  # Посещаем поля и методы для дальнейшего анализа
+  for field in node.structFields:
+    self.visit(field)
+  for meth in node.structMethods:
+    self.visit(meth)
+
+method visitEnumDef*(self: SymbolCollector, node: Node) =
+  # Создаем символы вариантов
+  var variantSymbols: seq[Symbol] = @[]
+  for variant in node.enumVariants:
+    let variantSymbol = Symbol(
+      name: variant.variantName,
+      kind: skVariable,
+      varType: node.enumName,
+      isConst: true,
+      line: variant.line,
+      column: variant.column
+    )
+    variantSymbols.add(variantSymbol)
+  
+  # Создаем символы методов
+  var methodSymbols: seq[Symbol] = @[]
+  for meth in node.enumMethods:
+    var paramSymbols: seq[Symbol] = @[]
+    for param in meth.funcParams:
+      let paramSymbol = Symbol(
+        name: param.paramName,
+        kind: skParameter,
+        paramType: param.paramType,
+        line: param.line,
+        column: param.column
+      )
+      paramSymbols.add(paramSymbol)
+    
+    let methodSymbol = Symbol(
+      name: meth.funcName,
+      kind: skFunction,
+      params: paramSymbols,
+      returnType: meth.funcRetType,
+      modifiers: meth.funcMods,
+      line: meth.line,
+      column: meth.column
+    )
+    methodSymbols.add(methodSymbol)
+  
+  # Создаем символ перечисления
+  let enumSymbol = Symbol(
+    name: node.enumName,
+    kind: skEnum,
+    enumVariants: variantSymbols,
+    enumMethods: methodSymbols,
+    line: node.line,
+    column: node.column
+  )
+  
+  # Добавляем перечисление в текущую область видимости
+  if not self.currentScope.define(enumSymbol):
+    self.errors.add(fmt"Enum '{node.enumName}' already defined at line {node.line}, column {node.column}")
+    return
+  
+  # Посещаем варианты и методы
+  for variant in node.enumVariants:
+    self.visit(variant)
+  for meth in node.enumMethods:
+    self.visit(meth)
+
 method visitAssign*(self: SymbolCollector, node: Node) =
   # Проверяем, является ли целью присваивания идентификатор
   if node.assignTarget.kind == nkIdent:
@@ -1040,10 +1350,47 @@ proc `$`*(node: Node): string =
   of nkPackDef:
     result = "PackDef: " & node.packName
     if node.packParents.len > 0:
-      result.add(" :: " & node.packParents.join("|"))
+      result.add(" <- " & node.packParents.join("|"))
     if node.packMods.len > 0:
       result.add(" !" & node.packMods.join("|"))
     result.add("\n  " & ($node.packBody).replace("\n", "\n  "))
+
+  of nkStructDef:
+    result = fmt"Struct '{node.structName}':\n"
+    if node.structFields.len > 0:
+      result.add("  Fields:\n")
+      for i, field in node.structFields:
+        result.add("    [" & $i & "] " & ($field).replace("\n", "\n    ") & "\n")
+    if node.structMethods.len > 0:
+      result.add("  Methods:\n")
+      for i, meth in node.structMethods:
+        result.add("    [" & $i & "] " & ($meth).replace("\n", "\n    ") & "\n")
+  
+  of nkEnumDef:
+    result = fmt"Enum '{node.enumName}':\n"
+    if node.enumVariants.len > 0:
+      result.add("  Variants:\n")
+      for i, variant in node.enumVariants:
+        result.add("    [" & $i & "] " & ($variant).replace("\n", "\n    ") & "\n")
+    if node.enumMethods.len > 0:
+      result.add("  Methods:\n")
+      for i, meth in node.enumMethods:
+        result.add("    [" & $i & "] " & ($meth).replace("\n", "\n    ") & "\n")
+  
+  of nkEnumVariant:
+    result = fmt"EnumVariant '{node.variantName}'"
+    if node.variantValue != nil:
+      result.add(" = " & ($node.variantValue).replace("\n", "\n  "))
+  
+  of nkFieldDef:
+    result = fmt"Field '{node.fieldName}': {node.fieldType}"
+    if node.fieldDefault != nil:
+      result.add(" = " & ($node.fieldDefault).replace("\n", "\n  "))
+  
+  of nkStructInit:
+    result = fmt"StructInit '{node.structType}':\n"
+    for i, arg in node.structArgs:
+      result.add("  [" & $i & "] " & ($arg).replace("\n", "\n  ") & "\n")
 
   of nkParam:
     result = node.paramName
@@ -1088,7 +1435,7 @@ proc `$`*(node: Node): string =
   of nkEvent:
     result = "Event: " & $node.evCond & "\n"
     result.add("  " & ($node.evBody).replace("\n", "\n  "))
-  
+
   of nkImport:
     result = "Import: " & node.imports.join(", ")
   
@@ -1137,24 +1484,34 @@ proc `$`*(node: Node): string =
   
   of nkNumber:
     result = "Number: " & $node.numVal
-  
+
+  of nkBool:
+    result = "Bool: " & $node.boolVal
+
   of nkString:
     result = "String: \"" & node.strVal & "\""
 
   of nkFormatString:
     result = "FormatString: " & node.formatType & "(\"" & node.formatContent & "\")"
 
-  of nkBool:
-    result = "Bool: " & $node.boolVal
-
+  of nkTable:
+    result = "Table:\n"
+    for i, pair in node.tablePairs:
+      result.add("  [" & $i & "] " & ($pair).replace("\n", "\n  ") & "\n")
+  
+  of nkTablePair:
+    result = "TablePair:\n"
+    result.add("  Key: " & ($node.pairKey).replace("\n", "\n  ") & "\n")
+    result.add("  Value: " & ($node.pairValue).replace("\n", "\n  "))
+  
   of nkArray:
     result = "Array: " & $node.elements
 
   of nkNoop:
     result = "Noop"
+
   else: result = " "
 
-# Пример трансформера AST: ConstantFolder
 type
   ConstantFolder* = ref object of AstTransformer
 
@@ -1293,6 +1650,46 @@ proc printAST*(node: Node, indent: int = 0) =
     echo indentStr & "  Body:"
     printAST(node.packBody, indent + 4)
 
+  of nkStructDef:
+    echo indentStr & fmt"Struct: {node.structName}"
+    if node.structFields.len > 0:
+      echo indentStr & "  Fields:"
+      for field in node.structFields:
+        printAST(field, indent + 2)
+    if node.structMethods.len > 0:
+      echo indentStr & "  Methods:"
+      for meth in node.structMethods:
+        printAST(meth, indent + 2)
+  
+  of nkEnumDef:
+    echo indentStr & fmt"Enum: {node.enumName}"
+    if node.enumVariants.len > 0:
+      echo indentStr & "  Variants:"
+      for variant in node.enumVariants:
+        printAST(variant, indent + 2)
+    if node.enumMethods.len > 0:
+      echo indentStr & "  Methods:"
+      for meth in node.enumMethods:
+        printAST(meth, indent + 2)
+  
+  of nkEnumVariant:
+    echo indentStr & fmt"Variant: {node.variantName}"
+    if node.variantValue != nil:
+      echo indentStr & "  Value:"
+      printAST(node.variantValue, indent + 2)
+  
+  of nkFieldDef:
+    echo indentStr & fmt"Field: {node.fieldName}: {node.fieldType}"
+    if node.fieldDefault != nil:
+      echo indentStr & "  Default:"
+      printAST(node.fieldDefault, indent + 2)
+  
+  of nkStructInit:
+    echo indentStr & fmt"StructInit: {node.structType}"
+    echo indentStr & "  Arguments:"
+    for arg in node.structArgs:
+      printAST(arg, indent + 2)
+
   of nkState:
     echo indentStr & "State: " & node.stateName
     echo indentStr & "  Body:"
@@ -1390,7 +1787,20 @@ proc printAST*(node: Node, indent: int = 0) =
     printAST(node.evCond, indent + 4)
     echo indentStr & "  Body:"
     printAST(node.evBody, indent + 4)
+
+  of nkTable:
+    echo indentStr & "Table:"
+    for i, pair in node.tablePairs:
+      echo indentStr & "  Pair " & $i & ":"
+      printAST(pair, indent + 4)
   
+  of nkTablePair:
+    echo indentStr & "Table Pair:"
+    echo indentStr & "  Key:"
+    printAST(node.pairKey, indent + 4)
+    echo indentStr & "  Value:"
+    printAST(node.pairValue, indent + 4)
+
   of nkImport:
     echo indentStr & "Import Statement:"
     for imp in node.imports:

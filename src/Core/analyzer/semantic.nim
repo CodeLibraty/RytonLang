@@ -1,8 +1,36 @@
-import std/[strformat, tables]
+import std/[strformat, tables, os]
 import ../compiler/parser
 import types, scope_manager, expression_analyzer, statement_analyzer
+import ryton_interface/ryi_parser
 
 export types, scope_manager, expression_analyzer, statement_analyzer
+
+proc loadRyiSymbols*(analyzer: SemanticAnalyzer, ryiPath: string) =
+  if not fileExists(ryiPath):
+    echo "[RYI] File not found: ", ryiPath
+    return
+  let content = readFile(ryiPath)
+  let parser = newRyiParser(content)
+  let entries = parser.parseRyiFile()
+  for entry in entries:
+    if entry.visibility == "pub":
+      var symbolKind: SymbolKind
+      case entry.kind:
+      of rekType: symbolKind = skClass
+      of rekFunc: symbolKind = skFunction
+      of rekMethod: symbolKind = skMethod
+      else: continue
+      let symbol = Symbol(
+        name: entry.name,
+        kind: symbolKind,
+        symbolType: if entry.kind == rekType: entry.name else: entry.returnType,
+        line: 0, column: 0, isUsed: false, scope: "global"
+      )
+      # Добавляем в глобальную область видимости
+      let currentScope = analyzer.currentScope
+      analyzer.currentScope = analyzer.globalScope
+      discard analyzer.addSymbol(symbol)
+      analyzer.currentScope = currentScope
 
 proc analyzeNode*(self: SemanticAnalyzer, node: Node) =
   if node == nil:

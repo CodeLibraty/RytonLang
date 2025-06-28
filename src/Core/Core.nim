@@ -1,4 +1,4 @@
-import std/[strutils, strformat, tables, terminal]
+import std/[strutils, strformat, tables, terminal, os]
 import compiler/lexer
 import compiler/parser
 import compiler/codegen
@@ -215,6 +215,17 @@ proc semanticAnalysis*(self: RytonCompiler): CompilationResult =
         return parseResult
     
     let analyzer = newSemanticAnalyzer()
+    # загрузка ryi-файлов из папки .ryi для модулей "lib" и "std"
+    let ryiDir = "test/src/.ryi"
+    if dirExists(ryiDir):
+      try:
+        for ryiFile in walkDirRec(ryiDir, {pcFile}):
+          if ryiFile.endsWith(".ryi"):
+            echo fmt"Loading RYI symbols from: {ryiFile}"
+            analyzer.loadRyiSymbols(ryiFile)
+      except OSError as e:
+        echo fmt"Error walking directory {ryiDir}: {e.msg}"
+    # Далее обычный анализ AST
     discard analyzer.analyze(self.ast)
     
     # if self.verbose:

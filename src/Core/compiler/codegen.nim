@@ -82,7 +82,7 @@ proc generateImports(self: CodeGenerator): string =
 proc generateExpression(self: var CodeGenerator, node: Node): string
 proc generateStatement(self: var CodeGenerator, node: Node)
 proc generateBlock(self: var CodeGenerator, node: Node)
-proc generateFunctionDeclaration(self: var CodeGenerator, node: Node)
+proc generateFunctionDeclaration(self: var CodeGenerator, node: Node, addToClass: string = "")
 proc generateLambdaDeclaration(self: var CodeGenerator, node: Node)
 proc generateIfStatement(self: var CodeGenerator, node: Node)
 
@@ -261,6 +261,41 @@ proc generateExpression(self: var CodeGenerator, node: Node): string =
     let idx = self.generateExpression(node.index)
     result = fmt"{arr}[{idx}]"
 
+  of nkTable:
+    # Генерируем Nim таблицу
+    self.addImport("tables")
+    
+    if node.tablePairs.len == 0:
+      return "initTable[string, auto]()"
+    
+    var pairs: seq[string] = @[]
+    for pair in node.tablePairs:
+      let key = self.generateExpression(pair.pairKey)
+      let value = self.generateExpression(pair.pairValue)
+      pairs.add(fmt"{key}: {value}")
+    
+    let pairsStr = pairs.join(", ")
+    return fmt"{{{pairsStr}}}.toTable()"
+  
+  of nkTablePair:
+    # Это не должно вызываться напрямую
+    let key = self.generateExpression(node.pairKey)
+    let value = self.generateExpression(node.pairValue)
+    return fmt"{key}: {value}"
+
+  of nkStructInit:
+    let structType = node.structType
+    var args: seq[string] = @[]
+    
+    for arg in node.structArgs:
+      if arg.kind == nkAssign:
+        let name = arg.assignTarget.ident
+        let value = self.generateExpression(arg.assignVal)
+        args.add(fmt"{name}: {value}")
+    
+    let argsStr = args.join(", ")
+    return fmt"new{structType}({argsStr})"
+
   of nkNoop:
     # No operation
     return "discard"
@@ -342,7 +377,7 @@ proc generateLambdaDeclaration(self: var CodeGenerator, node: Node) =
 
   self.currentLambdaReturnModifier = '\0'
 
-proc generateFunctionDeclaration(self: var CodeGenerator, node: Node) =
+proc generateFunctionDeclaration(self: var CodeGenerator, node: Node, addToClass: string = "") =
   let (paramStrings, nilChecks) = self.processParameters(node.funcParams)
   let returnType = self.processReturnType(node.funcRetType, node.funcRetTypeModifier)
   let modifiers = processModifiers(node.funcMods)
@@ -351,7 +386,10 @@ proc generateFunctionDeclaration(self: var CodeGenerator, node: Node) =
   self.currentFuncReturnModifier = node.funcRetTypeModifier
 
   let paramsStr = paramStrings.join(", ")
-  self.emitLine(fmt"proc {node.funcName}{accessMethod}({paramsStr}){returnType}{modifiers} =")
+  if addToClass.len > 0:
+    self.emitLine(fmt"proc {node.funcName}{accessMethod}(this: {addToClass}, {paramsStr}){returnType}{modifiers} =")
+  else:
+    self.emitLine(fmt"proc {node.funcName}{accessMethod}({paramsStr}){returnType}{modifiers} =")
 
   self.increaseIndent()
   self.emitNilChecks(nilChecks)
@@ -446,6 +484,70 @@ proc generatePackDeclaration(self: var CodeGenerator, node: Node) =
     else: discard
 
   self.decreaseIndent()
+
+proc generateStructDeclaration(self: var CodeGenerator, node: Node) =
+  let name = node.structName
+  
+  self.emitLine(fmt"type")
+  self.increaseIndent()
+  self.emitLine(fmt"{name}* = object")
+  
+  self.increaseIndent()
+  for field in node.structFields:
+    let fieldType = field.fieldType
+    if field.fieldDefault != nil:
+      # Поля с значениями по умолчанию генерируем как обычные поля
+      # значения по умолчанию обрабатываем в конструкторе
+      self.emitLine(fmt"{field.fieldName}*: {fieldType}")
+    else:
+      self.emitLine(fmt"{field.fieldName}*: {fieldType}")
+  self.decreaseIndent()
+  self.decreaseIndent()
+  
+  # Генерируем конструктор
+  self.emitLine()
+  var params: seq[string] = @[]
+  var assignments: seq[string] = @[]
+  
+  for field in node.structFields:
+    if field.fieldDefault != nil:
+      let defaultVal = self.generateExpression(field.fieldDefault)
+      params.add(fmt"{field.fieldName}: {field.fieldType} = {defaultVal}")
+    else:
+      params.add(fmt"{field.fieldName}: {field.fieldType}")
+    assignments.add(fmt"result.{field.fieldName} = {field.fieldName}")
+  
+  let paramsStr = params.join(", ")
+  self.emitLine(fmt"proc new{name}*({paramsStr}): {name} =")
+  self.increaseIndent()
+  for assignment in assignments:
+    self.emitLine(assignment)
+  self.decreaseIndent()
+  
+  # Генерируем методы
+  for meth in node.structMethods:
+    self.generateFunctionDeclaration(meth, name)
+
+proc generateEnumDeclaration(self: var CodeGenerator, node: Node) =
+  let name = node.enumName
+  
+  self.emitLine(fmt"type")
+  self.increaseIndent()
+  self.emitLine(fmt"{name}* = enum")
+  
+  self.increaseIndent()
+  for i, variant in node.enumVariants:
+    if variant.variantValue != nil:
+      let value = self.generateExpression(variant.variantValue)
+      self.emitLine(fmt"{variant.variantName} = {value}")
+    else:
+      self.emitLine(fmt"{variant.variantName}")
+  self.decreaseIndent()
+  self.decreaseIndent()
+  
+  # Генерируем методы
+  for meth in node.enumMethods:
+    self.generateFunctionDeclaration(meth, name)
 
 proc generateIfStatement(self: var CodeGenerator, node: Node) =
   let condition = self.generateExpression(node.ifCond)
@@ -569,13 +671,21 @@ proc generateSwitchStatement(self: var CodeGenerator, node: Node) =
 
 proc generateForStatement(self: var CodeGenerator, node: Node) =
   let variable = node.forVar
-  let start = self.generateExpression(node.forRange.start)
-  let endExpr = self.generateExpression(node.forRange.endExpr)
-
-  # Determine the range operator based on inclusivity
-  let rangeOp = if node.forRange.inclusive: ".." else: "..<"
-
-  self.emitLine(fmt"for {variable} in {start}{rangeOp}{endExpr}:")
+  
+  # Проверяем, есть ли конечное выражение (диапазон) или это итерация по коллекции
+  if node.forRange.endExpr == nil:
+    # Итерация по коллекции: for item in collection
+    let collection = self.generateExpression(node.forRange.start)
+    self.emitLine(fmt"for {variable} in {collection}:")
+  else:
+    # Итерация по диапазону: for i in 1..10
+    let start = self.generateExpression(node.forRange.start)
+    let endExpr = self.generateExpression(node.forRange.endExpr)
+    
+    # Determine the range operator based on inclusivity
+    let rangeOp = if node.forRange.inclusive: ".." else: "..<"
+    
+    self.emitLine(fmt"for {variable} in {start}{rangeOp}{endExpr}:")
 
   self.increaseIndent()
   self.generateBlock(node.forBody)
@@ -717,6 +827,8 @@ proc generateStatement(self: var CodeGenerator, node: Node) =
   case node.kind
   of nkFuncDef:       self.generateFunctionDeclaration(node)
   of nkPackDef:       self.generatePackDeclaration(node)
+  of nkStructDef:     self.generateStructDeclaration(node)
+  of nkEnumDef:       self.generateEnumDeclaration(node)
   of nkState:         self.generateStateDeclaration(node)
   of nkIf:            self.generateIfStatement(node)
   of nkSwitch:        self.generateSwitchStatement(node)
@@ -756,7 +868,7 @@ proc generateProgram(self: var CodeGenerator, node: Node): string =
 
   # Prepend imports
   let imports = self.generateImports()
-  return rytonCompiler & imports & "\n\n" & self.output & "\n\n" & "Main()"
+  return rytonCompiler & imports & "\n\n\n" & self.output & "\n\n" & "Main()"
 
 proc generateNimCode*(ast: Node): string =
   ## Generates Nim code from the given AST
