@@ -333,6 +333,39 @@ proc processParameters(self: var CodeGenerator, params: seq[Node]): tuple[paramS
 
   return (paramStrings, nilChecks)
 
+proc generateGenericParams(self: var CodeGenerator, genericParams: seq[Node]): string =
+  ## Генерирует параметры дженериков [T, U: SomeType]
+  if genericParams.len == 0:
+    return ""
+  
+  var params: seq[string] = @[]
+  for param in genericParams:
+    var paramStr = param.genericName
+    
+    # Добавляем ограничения
+    if param.genericConstraints.len > 0:
+      var constraints: seq[string] = @[]
+      for constraint in param.genericConstraints:
+        constraints.add(constraint.constraintType)
+      paramStr.add(": " & constraints.join(" + "))
+    
+    params.add(paramStr)
+  
+  return "[" & params.join(", ") & "]"
+
+proc generateGenericType(self: var CodeGenerator, baseType: string, genericArgs: seq[string] = @[]): string =
+  ## Генерирует дженерик тип Array[T] -> seq[T] в Nim
+  result = case baseType
+    of "Array": "seq"
+    of "List": "seq" 
+    of "Map", "Table": "Table"
+    of "Set": "HashSet"
+    of "Optional": "Option"
+    else: baseType
+  
+  if genericArgs.len > 0:
+    result.add("[" & genericArgs.join(", ") & "]")
+
 proc processReturnType(self: var CodeGenerator, retType: string, retTypeModifier: char): string =
   if retType.len == 0:
     return ""
@@ -363,11 +396,14 @@ proc generateLambdaDeclaration(self: var CodeGenerator, node: Node) =
   let modifiers = processModifiers(node.lambdaMods)
 
   self.currentLambdaReturnModifier = node.lambdaRetTypeModifier
-  
+
+  # Генерируем дженерик параметры
+  let genericParams = self.generateGenericParams(node.lambdaGenericParams)
+
   let paramsStr = paramStrings.join(", ")
   var saveIndent = self.indentLevel
   self.indentLevel = 0
-  self.emitLine(fmt"proc({paramsStr}){returnType}{modifiers} =")
+  self.emitLine(fmt"proc{genericParams}({paramsStr}){returnType}{modifiers} =")
   self.indentLevel = saveIndent
 
   self.increaseIndent()
@@ -385,11 +421,14 @@ proc generateFunctionDeclaration(self: var CodeGenerator, node: Node, addToClass
 
   self.currentFuncReturnModifier = node.funcRetTypeModifier
 
+  # Генерируем дженерик параметры
+  let genericParams = self.generateGenericParams(node.funcGenericParams)
+
   let paramsStr = paramStrings.join(", ")
   if addToClass.len > 0:
-    self.emitLine(fmt"proc {node.funcName}{accessMethod}(this: {addToClass}, {paramsStr}){returnType}{modifiers} =")
+    self.emitLine(fmt"proc {node.funcName}{accessMethod}{genericParams}(this: {addToClass}, {paramsStr}){returnType}{modifiers} =")
   else:
-    self.emitLine(fmt"proc {node.funcName}{accessMethod}({paramsStr}){returnType}{modifiers} =")
+    self.emitLine(fmt"proc {node.funcName}{accessMethod}{genericParams}({paramsStr}){returnType}{modifiers} =")
 
   self.increaseIndent()
   self.emitNilChecks(nilChecks)
@@ -403,11 +442,15 @@ proc generateMethodDeclaration(self: var CodeGenerator, node: Node, className: s
   let (paramStrings, nilChecks) = self.processParameters(node.funcParams)
   let returnType = self.processReturnType(node.funcRetType, node.funcRetTypeModifier)
   let modifiers = processModifiers(node.funcMods)
+  let accessMethod = if node.funcPublic: "*" else: ""
 
   self.currentFuncReturnModifier = node.funcRetTypeModifier
 
+  # Генерируем дженерик параметры
+  let genericParams = self.generateGenericParams(node.funcGenericParams)
+
   let paramsStr = paramStrings.join(", ")
-  self.emitLine(fmt"method {node.funcName}*({paramsStr}){returnType}{modifiers} =")
+  self.emitLine(fmt"method {node.funcName}{accessMethod}{genericParams}({paramsStr}){returnType}{modifiers} =")
 
   self.increaseIndent()
   self.emitNilChecks(nilChecks)
@@ -478,7 +521,7 @@ proc generatePackDeclaration(self: var CodeGenerator, node: Node) =
     of nkAssign:
       let assignExpr = self.generateExpression(stmt)
       self.emitLine(assignExpr)
-    of nkIf, nkOutPut:
+    of nkIf, nkReturn:
       # Эти узлы должны быть внутри методов, а не напрямую в классе
       echo "Warning: statement outside of method: ", stmt.kind
     else: discard
@@ -833,14 +876,13 @@ proc generateStatement(self: var CodeGenerator, node: Node) =
   of nkIf:            self.generateIfStatement(node)
   of nkSwitch:        self.generateSwitchStatement(node)
   of nkFor:           self.generateForStatement(node)
-  of nkEach:          self.generateEachStatement(node)
   of nkWhile:         self.generateWhileStatement(node)
   of nkInfinit:       self.generateInfinitStatement(node)
   of nkRepeat:        self.generateRepeatStatement(node)
   of nkTry:           self.generateTryStatement(node)
   of nkEvent:         self.generateEventStatement(node)
   of nkImport:        self.generateImportStatement(node)
-  of nkOutPut:        self.generateReturnStatement(node)
+  of nkReturn:        self.generateReturnStatement(node)
   of nkExprStmt:      self.generateExpressionStatement(node)
   of nkBlock:         self.generateBlock(node)
   of nkNoop:          self.emitLine("discard")

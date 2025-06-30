@@ -30,7 +30,7 @@ type
     nkTry,            # Блок try-error
     nkEvent,          # Событие
     nkImport,         # Импорт модулей
-    nkOutPut,         # Оператор return
+    nkReturn,         # Оператор return
     nkState,          # Объявление состояния
     nkStateBody,      # Тело состояния
     nkWhile,
@@ -43,7 +43,9 @@ type
     nkCall,           # Вызов функции
     nkProperty,       # Доступ к свойству
     nkGroup,          # Группировка выражений
-    
+    nkGenericParam,   # Параметр дженерика T, U etc
+    nkGenericConstraint, # Ограничение дженерика T: SomeType
+
     # Присваивания
     nkAssign,         # Присваивание
     
@@ -98,6 +100,7 @@ type
     of nkFuncDef:
       funcName*: string
       funcParams*: seq[Node]
+      funcGenericParams*: seq[Node]
       funcMods*: seq[string]
       funcRetType*: string
       funcRetTypeModifier*: char
@@ -108,14 +111,23 @@ type
       lambdaParams*: seq[Node]
       lambdaMods*: seq[string]
       lambdaRetType*: string
+      lambdaGenericParams*: seq[Node]
       lambdaRetTypeModifier*: char
       lambdaBody*: Node
     
     of nkPackDef:
       packName*: string
+      packGenericParams*: seq[Node]
       packParents*: seq[string]
       packMods*: seq[string]
       packBody*: Node
+
+    of nkGenericParam:
+      genericName*: string
+      genericConstraints*: seq[Node]  # T: SomeType + AnotherType
+    
+    of nkGenericConstraint:
+      constraintType*: string
 
     of nkState:
       stateName*: string
@@ -209,7 +221,7 @@ type
     of nkImport:
       imports*: seq[ImportSpec]
     
-    of nkOutPut:
+    of nkReturn:
       retVal*: Node
     
     of nkBinary:
@@ -798,6 +810,76 @@ proc logicalOr(p: Parser): Node =
   
   return expr
 
+
+proc parseGenericParam(p: Parser): Node =
+  ## Парсит T или T: SomeType или T: Type1 + Type2
+  let nameToken = p.consume(tkIdentifier, "Expected generic parameter name")
+  
+  result = newNode(nkGenericParam)
+  result.genericName = nameToken.lexeme
+  result.genericConstraints = @[]
+  result.line = nameToken.line
+  result.column = nameToken.column
+  
+  # Проверяем ограничения
+  if p.match(tkColon):
+    # Первое ограничение
+    let constraintType = p.consume(tkIdentifier, "Expected constraint type").lexeme
+    let constraint = newNode(nkGenericConstraint)
+    constraint.constraintType = constraintType
+    result.genericConstraints.add(constraint)
+    
+    # Дополнительные ограничения через +
+    while p.match(tkPlus):
+      let additionalType = p.consume(tkIdentifier, "Expected constraint type after '+'").lexeme
+      let additionalConstraint = newNode(nkGenericConstraint)
+      additionalConstraint.constraintType = additionalType
+      result.genericConstraints.add(additionalConstraint)
+
+proc parseGenericParams(p: Parser): seq[Node] =
+  ## Парсит [T, U: SomeType, V: AnotherType + MoreType]
+  result = @[]
+  
+  if not p.match(tkLBracket):
+    return result
+  
+  # Пропускаем переносы строк
+  while p.match(tkNewline): discard
+  
+  if p.check(tkRBracket):
+    discard p.advance()
+    return result
+  
+  # Первый параметр
+  result.add(p.parseGenericParam())
+  
+  # Остальные параметры через запятую
+  while p.match(tkComma):
+    while p.match(tkNewline): discard
+    if p.check(tkRBracket): break
+    result.add(p.parseGenericParam())
+  
+  while p.match(tkNewline): discard
+  discard p.consume(tkRBracket, "Expected ']' after generic parameters")
+
+proc parseGenericType(p: Parser, baseType: string): string =
+  ## Парсит Array[int] или Table[string, int] etc
+  result = baseType
+  
+  if p.match(tkLBracket):
+    result &= "["
+    
+    # Первый тип
+    result &= p.consume(tkIdentifier, "Expected type in generic").lexeme
+    
+    # Остальные типы через запятую
+    while p.match(tkComma):
+      result &= ", "
+      result &= p.consume(tkIdentifier, "Expected type after comma").lexeme
+    
+    result &= "]"
+    discard p.consume(tkRBracket, "Expected ']' after generic types")
+
 proc assignment(p: Parser): Node =
   var declType = dtNone
   
@@ -926,7 +1008,8 @@ proc parameter(p: Parser): Node =
       typeModifier = '?'
 
     # Собираем полный тип с поддержкой составных типов
-    paramType = p.consume(tkIdentifier, "Expected parameter type after ':'").lexeme
+    let baseType = p.consume(tkIdentifier, "Expected parameter type after ':'").lexeme
+    paramType = p.parseGenericType(baseType)  # Поддержка дженериков
     
     # Проверяем ptr/ref типы
     if paramType in ["ptr", "ref"] and p.check(tkIdentifier):
@@ -1298,7 +1381,7 @@ proc eventStatement(p: Parser): Node =
   return result
 
 proc returnStatement(p: Parser): Node =
-  let token = p.consume(tkOutPut, "Expected 'return' keyword")
+  let token = p.consume(tkReturn, "Expected 'return' keyword")
   
   var value: Node = nil
   # Проверяем, есть ли выражение после return
@@ -1308,7 +1391,7 @@ proc returnStatement(p: Parser): Node =
   # Опционально: проверка на точку с запятой
   discard p.match(tkSemicolon)
   
-  result = newNode(nkOutPut)
+  result = newNode(nkReturn)
   result.retVal = value
   result.line = token.line
   result.column = token.column
@@ -1449,6 +1532,9 @@ proc tryStatement(p: Parser): Node =
 proc lambdaDeclaration(p: Parser): Node =
   let token = p.consume(tkLambda, "Expected 'lambda' keyword")
 
+  # Дженерик параметры [T, U: SomeType]
+  let genericParams = p.parseGenericParams()
+
   # Параметры
   var params: seq[Node] = @[]
   if p.match(tkLParen):
@@ -1510,6 +1596,7 @@ proc lambdaDeclaration(p: Parser): Node =
   
   result = newNode(nkLambdaDef)
   result.lambdaParams = params
+  result.lambdaGenericParams = genericParams
   result.lambdaRetType = returnType
   result.lambdaRetTypeModifier = returnTypeModifier 
   result.lambdaMods = modifiers
@@ -1526,6 +1613,9 @@ proc functionDeclaration(p: Parser): Node =
 
   # публичная или приватная
   var public = true
+
+  # Дженерик параметры [T, U: SomeType]
+  let genericParams = p.parseGenericParams()
 
   # Параметры
   var params: seq[Node] = @[]
@@ -1560,7 +1650,8 @@ proc functionDeclaration(p: Parser): Node =
     elif p.match(tkQuestion):
       returnTypeModifier = '?'
     
-    returnType = p.consume(tkIdentifier, "Expected return type after ':'").lexeme
+    let baseReturnType = p.consume(tkIdentifier, "Expected return type after ':'").lexeme
+    returnType = p.parseGenericType(baseReturnType)
 
   # Модификаторы
   var modifiers: seq[string] = @[]
@@ -1588,6 +1679,7 @@ proc functionDeclaration(p: Parser): Node =
   
   result = newNode(nkFuncDef)
   result.funcName = name
+  result.funcGenericParams = genericParams
   result.funcParams = params
   result.funcRetType = returnType
   result.funcRetTypeModifier = returnTypeModifier 
@@ -1680,6 +1772,9 @@ proc packDeclaration(p: Parser): Node =
   # Имя пакета
   let name = p.consume(tkIdentifier, "Expected pack name after 'pack'").lexeme
 
+  # Дженерик параметры [T, U: SomeType]
+  let genericParams = p.parseGenericParams()
+
   # Модификаторы (опционально)
   var modifiers: seq[string] = @[]
   if p.match(tkModStart):
@@ -1703,6 +1798,7 @@ proc packDeclaration(p: Parser): Node =
   
   result = newNode(nkPackDef)
   result.packName = name
+  result.packGenericParams = genericParams
   result.packParents = parents
   result.packMods = modifiers
   result.packBody = body
@@ -1956,7 +2052,7 @@ proc statement(p: Parser): Node =
     return p.importStatement()
   
   # Обработка возврата из функции
-  if p.check(tkOutPut):
+  if p.check(tkReturn):
     return p.returnStatement()
   
   # Обработка noop
@@ -2096,7 +2192,7 @@ proc `$`*(node: Node, indent: int = 0): string =
         result &= " as " & imp.alias
       result &= "\n"
   
-  of nkOutPut:
+  of nkReturn:
     result = indentStr & "Return:\n"
     if node.retVal != nil:
       result &= `$`(node.retVal, indent + 2)

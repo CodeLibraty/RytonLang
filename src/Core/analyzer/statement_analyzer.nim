@@ -275,7 +275,7 @@ proc analyzeStatement*(self: SemanticAnalyzer, node: Node) =
     self.analyzeEachStatement(node)
   of nkWhile:
     self.analyzeWhileStatement(node)
-  of nkOutPut:
+  of nkReturn:
     self.analyzeReturnStatement(node)
   of nkBlock:
     for stmt in node.blockStmts:

@@ -9,6 +9,12 @@ module import {
     std.fStrings
 }
 
+</-----------------------\>
+ |                       |
+ |  мой тестовый проект  |
+ |                       |
+<\-----------------------/>
+
 struct myStruct {
     x: Int,
     y: Int,
@@ -19,16 +25,16 @@ enum Status {
     Success,
     Error,
     
-    func isOk: Bool => output this == Success
+    func isOk: Bool => return this == Success
     func message: String {
         switch this {
-            case Success => output "Operation completed"
-            case Error => output "Operation failed"
+            case Success => return "Operation completed"
+            case Error => return "Operation failed"
         }
     }
 }
 
-func Main {
+func Main[T]:T {
     def stat:Status = Success
     stat.message().print() 
 

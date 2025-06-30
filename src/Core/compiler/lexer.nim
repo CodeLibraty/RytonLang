@@ -14,7 +14,7 @@ type
     tkFunc, tkPack, tkEvent, tkInit, tkMacro, tkIf, tkElif, tkElse
     tkFor, tkIn, tkInfinit, tkRepeat, tkTry, tkError, tkSwitch, tkWith
     tkLazy, tkData, tkTable, tkPrivate, tkSlots, tkImport, tkModule,
-    tkNoop, tkOutPut, tkLambda, tkEach, tkFrom, tkTo, tkStep, tkWhere,
+    tkNoop, tkReturn, tkLambda, tkEach, tkFrom, tkTo, tkStep, tkWhere,
     tkState, tkWhile, tkDefault, tkCase, tkStruct, tkEnum
     
     # Операторы
@@ -95,7 +95,7 @@ proc newLexer*(source: string): Lexer =
       "private":    tkPrivate,
       "slots":      tkSlots,
       "while":      tkWhile,
-      "output":     tkOutPut,
+      "return":     tkReturn,
       "each":       tkEach,
       "from":       tkFrom,
       "to":         tkTo,

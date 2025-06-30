@@ -2,7 +2,7 @@
 # (с) 2025 CodeLibraty Foundation #
 #     This file is auto-generated #
 
-import classes
+
 
 
 import std/Core/stdTypes
@@ -13,18 +13,13 @@ import std/Files
 import std/Info
 import std/Paths
 import std/fStrings
-
-class main:
-  method hi*() =
-    discard
-  
 type
-  Sas* = object
+  myStruct* = object
     x*: Int
     y*: Int
     z*: Int
 
-proc newSas*(x: Int, y: Int, z: Int = 10): Sas =
+proc newmyStruct*(x: Int, y: Int, z: Int = 10): myStruct =
   result.x = x
   result.y = y
   result.z = z
@@ -41,13 +36,13 @@ proc message*(this: Status, ): String =
   elif this == Error:
     return "Operation failed"
 
-var stat: Status = Success
-stat.message().print()
-proc Main*() =
-  var mySas = newSas(x = 10, y = 20)
-  print(mySas.x)
-  print(mySas.y)
-  print(mySas.z)
+proc Main*[T](): T =
+  var stat: Status = Success
+  stat.message().print()
+  var myStruct = newmyStruct(x = 10, y = 20)
+  print(myStruct.x)
+  print(myStruct.y)
+  print(myStruct.z)
 
 
 

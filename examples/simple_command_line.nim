@@ -17,16 +17,16 @@ import std/fStrings
 var userName: String = runCmdOutput("whoami")
 
 class DeltaShell:
-  method currentDir*(): String =
+  method currentDir(): String =
     runCmdOutput("pwd").replace(f"/home/{userName}" , "~")
   
-  method commandListDirectory*() =
+  method commandListDirectory() =
     let files = listDirectory(this.currentDir)
     print("Files in <italic>`{this.currentDir}`</italic>:")
     for file in files:
       print(file)
   
-  method commandExecute*(command: String) =
+  method commandExecute(command: String) =
     let command = command.split(" ")
     if command[0] == "cd":
       if len(command) == 1:
@@ -49,7 +49,7 @@ class DeltaShell:
     else:
       runCmdOutput(command.join(" ")).print()
   
-  method UIShell*() =
+  method UIShell() =
     var command = " "
     while true:
       pause(10)

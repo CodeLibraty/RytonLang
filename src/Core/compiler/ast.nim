@@ -75,6 +75,13 @@ method visitBlock*(self: AstVisitor, node: Node) {.base.} =
 method visitExprStmt*(self: AstVisitor, node: Node) {.base.} =
   self.visit(node.expr)
 
+method visitGenericParam*(self: AstVisitor, node: Node) {.base.} =
+  for constraint in node.genericConstraints:
+    self.visit(constraint)
+
+method visitGenericConstraint*(self: AstVisitor, node: Node) {.base.} =
+  discard
+
 method visitFuncDef*(self: AstVisitor, node: Node) {.base.} =
   for param in node.funcParams:
     self.visit(param)
@@ -287,6 +294,8 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
   of nkProgram:           self.visitProgram(node)
   of nkBlock:             self.visitBlock(node)
   of nkExprStmt:          self.visitExprStmt(node)
+  of nkGenericParam:      self.visitGenericParam(node)
+  of nkGenericConstraint: self.visitGenericConstraint(node)
   of nkFuncDef:           self.visitFuncDef(node)
   of nkLambdaDef:         self.visitLambdaDef(node)
   of nkPackDef:           self.visitPackDef(node)
@@ -310,7 +319,7 @@ method visit*(self: AstVisitor, node: Node) {.base.} =
   of nkTry:               self.visitTry(node)
   of nkEvent:             self.visitEvent(node)
   of nkImport:            self.visitImport(node)
-  of nkOutPut:            self.visitReturn(node)
+  of nkReturn:            self.visitReturn(node)
   of nkBinary:            self.visitBinary(node)
   of nkUnary:             self.visitUnary(node)
   of nkCall:              self.visitCall(node)
@@ -568,6 +577,32 @@ method transformParam*(self: AstTransformer, node: Node): Node {.base.} =
   result.line = node.line
   result.column = node.column
 
+method transformGenericParam*(self: AstTransformer, node: Node): Node {.base.} =
+  var newConstraints: seq[Node] = @[]
+  var hasChanges = false
+  
+  for constraint in node.genericConstraints:
+    let transformed = self.transform(constraint)
+    if transformed != constraint:
+      hasChanges = true
+    if transformed != nil:
+      newConstraints.add(transformed)
+  
+  if not hasChanges:
+    return node
+  
+  result = newNode(nkGenericParam)
+  result.genericName = node.genericName
+  result.genericConstraints = newConstraints
+  result.line = node.line
+  result.column = node.column
+
+method transformGenericConstraint*(self: AstTransformer, node: Node): Node {.base.} =
+  result = newNode(nkGenericConstraint)
+  result.constraintType = node.constraintType
+  result.line = node.line
+  result.column = node.column
+
 method transformIf*(self: AstTransformer, node: Node): Node {.base.} =
   let cond = self.transform(node.ifCond)
   if cond == nil:
@@ -769,7 +804,7 @@ method transformReturn*(self: AstTransformer, node: Node): Node {.base.} =
   if node.retVal != nil:
     value = self.transform(node.retVal)
   
-  result = newNode(nkOutPut)
+  result = newNode(nkReturn)
   result.retVal = value
   result.line = node.line
   result.column = node.column
@@ -990,6 +1025,9 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
   of nkState:         return self.transformState(node)
   of nkStateBody:     return self.transformStateBody(node)
   of nkParam:         return self.transformParam(node)
+  of nkGenericParam:  return self.transformGenericParam(node)
+  of nkGenericConstraint:
+                      return self.transformGenericConstraint(node)
   of nkIf:            return self.transformIf(node)
   of nkSwitch:        return self.transformSwitch(node)
   of nkSwitchCase:    return self.transformSwitchCase(node)
@@ -1002,7 +1040,7 @@ method transform*(self: AstTransformer, node: Node): Node {.base.} =
   of nkTry:           return self.transformTry(node)
   of nkEvent:         return self.transformEvent(node)
   of nkImport:        return self.transformImport(node)
-  of nkOutPut:        return self.transformReturn(node)
+  of nkReturn:        return self.transformReturn(node)
   of nkBinary:        return self.transformBinary(node)
   of nkUnary:         return self.transformUnary(node)
   of nkCall:          return self.transformCall(node)
@@ -1324,17 +1362,28 @@ proc `$`*(node: Node): string =
     result = "ExprStmt: " & $node.expr
   
   of nkFuncDef:
-    result = "FuncDef: " & node.funcName & "("
+    result = "FuncDef: " & node.funcName
+    
+    # Добавить дженерики
+    if node.funcGenericParams.len > 0:
+      result.add("[")
+      for i, genericParam in node.funcGenericParams:
+        if i > 0: result.add(", ")
+        result.add($genericParam)
+      result.add("]")
+    
+    result.add("(")
     for i, param in node.funcParams:
       if i > 0: result.add(", ")
       result.add($param)
     result.add(")")
+    
     if node.funcRetType.len > 0:
       result.add(":" & node.funcRetType)
     if node.funcMods.len > 0:
       result.add(" !" & node.funcMods.join("|"))
     result.add("\n  " & ($node.funcBody).replace("\n", "\n  "))
-  
+
   of nkLambdaDef:
     result = "LambdaDef: " & "("
     for i, param in node.lambdaParams:
@@ -1349,6 +1398,15 @@ proc `$`*(node: Node): string =
 
   of nkPackDef:
     result = "PackDef: " & node.packName
+    
+    # Добавить дженерики
+    if node.packGenericParams.len > 0:
+      result.add("[")
+      for i, genericParam in node.packGenericParams:
+        if i > 0: result.add(", ")
+        result.add($genericParam)
+      result.add("]")
+    
     if node.packParents.len > 0:
       result.add(" <- " & node.packParents.join("|"))
     if node.packMods.len > 0:
@@ -1439,11 +1497,22 @@ proc `$`*(node: Node): string =
   of nkImport:
     result = "Import: " & node.imports.join(", ")
   
-  of nkOutPut:
+  of nkReturn:
     result = "Return"
     if node.retVal != nil:
       result.add(": " & $node.retVal)
-  
+
+  of nkGenericConstraint:
+    result = node.constraintType
+
+  of nkGenericParam:
+    result = node.genericName
+    if node.genericConstraints.len > 0:
+      result.add(": ")
+      for i, constraint in node.genericConstraints:
+        if i > 0: result.add(" + ")
+        result.add($constraint)
+
   of nkBinary:
     result = "Binary: " & $node.binOp & "\n"
     result.add("  Left: " & ($node.binLeft).replace("\n", "\n  ") & "\n")
@@ -1619,6 +1688,12 @@ proc printAST*(node: Node, indent: int = 0) =
   
   of nkFuncDef:
     echo indentStr & "Function: " & node.funcName
+
+    if node.funcGenericParams.len > 0:
+      echo indentStr & "  Generic Parameters:"
+      for genericParam in node.funcGenericParams:
+        printAST(genericParam, indent + 4)
+
     echo indentStr & "  Parameters:"
     for param in node.funcParams:
       echo indentStr & "    " & param.paramName & (if param.paramType.len > 0: ": " & param.paramType else: "")
@@ -1647,6 +1722,10 @@ proc printAST*(node: Node, indent: int = 0) =
       echo indentStr & "  Parents: " & node.packParents.join(", ")
     if node.packMods.len > 0:
       echo indentStr & "  Modifiers: " & node.packMods.join(", ")
+    if node.packGenericParams.len > 0:
+      echo indentStr & "  Generic Parameters:"
+      for genericParam in node.packGenericParams:
+        printAST(genericParam, indent + 4)
     echo indentStr & "  Body:"
     printAST(node.packBody, indent + 4)
 
@@ -1813,13 +1892,23 @@ proc printAST*(node: Node, indent: int = 0) =
       else:
         echo indentStr & "  " & path
   
-  of nkOutPut:
+  of nkReturn:
     echo indentStr & "Return Statement:"
     if node.retVal != nil:
       printAST(node.retVal, indent + 2)
     else:
       echo indentStr & "  <no value>"
-  
+
+  of nkGenericParam:
+    echo indentStr & "Generic Parameter: " & node.genericName
+    if node.genericConstraints.len > 0:
+      echo indentStr & "  Constraints:"
+      for constraint in node.genericConstraints:
+        printAST(constraint, indent + 4)
+
+  of nkGenericConstraint:
+    echo indentStr & "Constraint: " & node.constraintType
+
   of nkExprStmt:
     echo indentStr & "Expression Statement:"
     printAST(node.expr, indent + 2)

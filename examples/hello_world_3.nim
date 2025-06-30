@@ -7,7 +7,7 @@ import classes
 
 
 class Programm:
-  method Hi*() =
+  method Hi() =
     print("Hello, World!")
   
 proc Main*() =
