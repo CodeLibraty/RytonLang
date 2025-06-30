@@ -65,5 +65,3 @@ Ryton aims to provide developers with a tool that combines the performance of lo
 
 ## License
  - MIT
-
-P.S. I'm from Russia and I don't know English that well. sorry for the crooked translation for docs ¯\\_(ツ)\_/¯
