@@ -1,5 +1,6 @@
-import std/[strutils, strformat]
+import std/[strutils, strformat, json]
 import lexer
+import ../bytecode/librbt
 
 # Исправленное определение типа Node
 type
@@ -82,6 +83,7 @@ type
   Node* = ref object
     line*: int        # Строка в исходном коде
     column*: int      # Колонка в исходном коде
+    rbtNode*: JsonNode # RBT представление узла
     
     case kind*: NodeKind
     of nkProgram:
@@ -318,6 +320,7 @@ type
     tokens*: seq[Token]
     current*: int
     errors*: seq[string]
+    rbtBuilder*: RBTBuilder
 
 proc newNode*(kind: NodeKind): Node =
   result = Node(kind: kind)
@@ -326,7 +329,8 @@ proc newParser*(tokens: seq[Token]): Parser =
   result = Parser(
     tokens: tokens,
     current: 0,
-    errors: @[]
+    errors: @[],
+    rbtBuilder: createRBTGenerator()
   )
 
 # Вспомогательные функции для работы с токенами
@@ -374,6 +378,36 @@ proc consume(p: Parser, kind: TokenKind, message: string): Token =
 ╰─────────────────"""
   return token
 
+# Конвертация Node в JsonNode для RBT
+proc nodeToRBT(node: Node): JsonNode =
+  if node == nil:
+    return newJNull()
+  
+  case node.kind:
+  of nkIdent:
+    return createIdent(node.ident)
+  of nkNumber:
+    return createNumber(node.numVal)
+  of nkString:
+    return createString(node.strVal)
+  of nkBool:
+    return createBool(node.boolVal)
+  of nkArray:
+    var elements: seq[JsonNode] = @[]
+    for elem in node.elements:
+      elements.add(nodeToRBT(elem))
+    return createArray(elements)
+  of nkBinary:
+    return createBinary(node.binOp, nodeToRBT(node.binLeft), nodeToRBT(node.binRight))
+  of nkUnary:
+    return createUnary(node.unOp, nodeToRBT(node.unExpr))
+  of nkCall:
+    var args: seq[JsonNode] = @[]
+    for arg in node.callArgs:
+      args.add(nodeToRBT(arg))
+    return createCall(nodeToRBT(node.callFunc), args)
+  else:
+    return newJNull()
 
 # Объявления функций парсинга
 proc expression(p: Parser): Node
@@ -425,7 +459,7 @@ proc parseArgument(p: Parser): Node =
       
       let value = p.primary()
       
-      # Создаем узел именованного аргумента
+      # Создаем узел именованного аргумента с RBT
       let namedArg = newNode(nkAssign)
       namedArg.assignOp = "="
       namedArg.declType = dtNone
@@ -434,11 +468,17 @@ proc parseArgument(p: Parser): Node =
       target.ident = nameToken.lexeme
       target.line = nameToken.line
       target.column = nameToken.column
+      target.rbtNode = p.rbtBuilder.generateIdent(nameToken.lexeme)
       
       namedArg.assignTarget = target
       namedArg.assignVal = value
       namedArg.line = nameToken.line
       namedArg.column = nameToken.column
+      
+      # Генерируем RBT для присваивания
+      namedArg.rbtNode = p.rbtBuilder.generateAssign(
+        "dtNone", "=", nodeToRBT(target), nodeToRBT(value), "", ""
+      )
       
       return namedArg
     else:
@@ -488,6 +528,7 @@ proc primary(p: Parser): Node =
     result.numVal = token.lexeme
     result.line = token.line
     result.column = token.column
+    result.rbtNode = p.rbtBuilder.generateNumber(token.lexeme)
     return result
   
   if p.match(tkString):
@@ -496,17 +537,19 @@ proc primary(p: Parser): Node =
     result.strVal = token.lexeme
     result.line = token.line
     result.column = token.column
+    result.rbtNode = p.rbtBuilder.generateString(token.lexeme)
     return result
 
   if p.match(tkFormatString):
     let token = p.previous()
     let parts = token.lexeme.split(":", 1) # Разделяем форматтер и содержимое
     
-    result = newNode(nkFormatString) # Нужно добавить этот тип в NodeKind
+    result = newNode(nkFormatString)
     result.formatType = parts[0]     # Тип форматтера (fmt, custom, etc.)
     result.formatContent = parts[1]  # Содержимое строки
     result.line = token.line
     result.column = token.column
+    result.rbtNode = p.rbtBuilder.generateFormatString(parts[0], parts[1])
     return result
   
   # Булевы значения
@@ -516,6 +559,7 @@ proc primary(p: Parser): Node =
     result.boolVal = true
     result.line = token.line
     result.column = token.column
+    result.rbtNode = p.rbtBuilder.generateBool(true)
     return result
     
   if p.match(tkFalse):
@@ -524,6 +568,7 @@ proc primary(p: Parser): Node =
     result.boolVal = false
     result.line = token.line
     result.column = token.column
+    result.rbtNode = p.rbtBuilder.generateBool(false)
     return result
 
   # Лямбда-функции
@@ -536,6 +581,7 @@ proc primary(p: Parser): Node =
     result.ident = token.lexeme
     result.line = token.line
     result.column = token.column
+    result.rbtNode = p.rbtBuilder.generateIdent(token.lexeme)
     var expr = result
 
     while true:
@@ -551,6 +597,7 @@ proc primary(p: Parser): Node =
         access.index = index
         access.line = token.line
         access.column = token.column
+        access.rbtNode = p.rbtBuilder.generateArrayAccess(nodeToRBT(expr), nodeToRBT(index))
         expr = access
 
       # Доступ к полям через точку obj.field
@@ -561,6 +608,7 @@ proc primary(p: Parser): Node =
         prop.propName = name.lexeme
         prop.line = name.line
         prop.column = name.column
+        prop.rbtNode = p.rbtBuilder.generateProperty(nodeToRBT(expr), name.lexeme)
         expr = prop
         
       # Вызов методов obj.method() с новой системой аргументов
@@ -572,6 +620,11 @@ proc primary(p: Parser): Node =
         call.callArgs = args
         call.line = token.line
         call.column = token.column
+        
+        var rbtArgs: seq[JsonNode] = @[]
+        for arg in args:
+          rbtArgs.add(nodeToRBT(arg))
+        call.rbtNode = p.rbtBuilder.generateCall(nodeToRBT(expr), rbtArgs)
         expr = call
 
       # Срезы массивов arr[1..5]
@@ -580,12 +633,15 @@ proc primary(p: Parser): Node =
         let endIndex = p.expression()
         discard p.consume(tkRBracket, "Expected ']' after slice range")
         let slice = newNode(nkSlice)
-        slice.array = expr
+        slice.sliceArray = expr
         slice.startIndex = p.expression()
         slice.endIndex = endIndex
         slice.inclusive = inclusive
         slice.line = token.line
         slice.column = token.column
+        slice.rbtNode = p.rbtBuilder.generateSlice(
+          nodeToRBT(expr), nodeToRBT(slice.startIndex), nodeToRBT(endIndex), inclusive
+        )
         expr = slice
         
       else:
@@ -598,6 +654,7 @@ proc primary(p: Parser): Node =
     result = newNode(nkNoop)
     result.line = token.line
     result.column = token.column
+    result.rbtNode = p.rbtBuilder.generateNoop()
     return result
 
   if p.match(tkLBrace):
@@ -625,6 +682,11 @@ proc primary(p: Parser): Node =
     
     result = newNode(nkArray)
     result.elements = elements
+    
+    var rbtElements: seq[JsonNode] = @[]
+    for elem in elements:
+      rbtElements.add(nodeToRBT(elem))
+    result.rbtNode = p.rbtBuilder.generateArray(rbtElements)
     return result
 
   if p.match(tkLParen):
@@ -634,6 +696,7 @@ proc primary(p: Parser): Node =
     discard p.consume(tkRParen, "Expected ')' after expression")
     result = newNode(nkGroup)
     result.groupExpr = expr
+    result.rbtNode = p.rbtBuilder.generateGroup(nodeToRBT(expr))
     return result
   
   let token = p.peek()
@@ -660,6 +723,11 @@ proc finishCall(p: Parser, callee: Node): Node =
   result = newNode(nkCall)
   result.callFunc = callee
   result.callArgs = args
+  
+  var rbtArgs: seq[JsonNode] = @[]
+  for arg in args:
+    rbtArgs.add(nodeToRBT(arg))
+  result.rbtNode = p.rbtBuilder.generateCall(nodeToRBT(callee), rbtArgs)
   return result
 
 proc call(p: Parser): Node =
@@ -675,6 +743,7 @@ proc call(p: Parser): Node =
       prop.propName = name.lexeme
       prop.line = name.line
       prop.column = name.column
+      prop.rbtNode = p.rbtBuilder.generateProperty(nodeToRBT(expr), name.lexeme)
       expr = prop
     else:
       break
@@ -691,6 +760,7 @@ proc unary(p: Parser): Node =
     result.unExpr = right
     result.line = operator.line
     result.column = operator.column
+    result.rbtNode = p.rbtBuilder.generateUnary(result.unOp, nodeToRBT(right))
     return result
   
   return p.call()
@@ -708,6 +778,7 @@ proc factor(p: Parser): Node =
     binary.binRight = right
     binary.line = operator.line
     binary.column = operator.column
+    binary.rbtNode = p.rbtBuilder.generateBinary(binary.binOp, nodeToRBT(expr), nodeToRBT(right))
     expr = binary
   
   return expr
@@ -725,6 +796,7 @@ proc term(p: Parser): Node =
     binary.binRight = right
     binary.line = operator.line
     binary.column = operator.column
+    binary.rbtNode = p.rbtBuilder.generateBinary(binary.binOp, nodeToRBT(expr), nodeToRBT(right))
     expr = binary
   
   return expr
@@ -735,7 +807,7 @@ proc comparison(p: Parser): Node =
   while p.match(tkLt, tkLe, tkGt, tkGe):
     let operator = p.previous()
     let right = p.term()
-    
+
     # Проверяем следующий токен
     if p.check(tkLParen):
       # Если это вызов функции, обрабатываем его отдельно
@@ -755,6 +827,7 @@ proc comparison(p: Parser): Node =
       binary.binRight = right
       binary.line = operator.line
       binary.column = operator.column
+      binary.rbtNode = p.rbtBuilder.generateBinary(binary.binOp, nodeToRBT(expr), nodeToRBT(right))
       expr = binary
       
   return expr
@@ -772,6 +845,7 @@ proc equality(p: Parser): Node =
     binary.binRight = right
     binary.line = operator.line
     binary.column = operator.column
+    binary.rbtNode = p.rbtBuilder.generateBinary(binary.binOp, nodeToRBT(expr), nodeToRBT(right))
     expr = binary
   
   return expr
@@ -789,6 +863,7 @@ proc logicalAnd(p: Parser): Node =
     binary.binRight = right
     binary.line = operator.line
     binary.column = operator.column
+    binary.rbtNode = p.rbtBuilder.generateBinary("and", nodeToRBT(expr), nodeToRBT(right))
     expr = binary
   
   return expr
@@ -806,10 +881,10 @@ proc logicalOr(p: Parser): Node =
     binary.binRight = right
     binary.line = operator.line
     binary.column = operator.column
+    binary.rbtNode = p.rbtBuilder.generateBinary("or", nodeToRBT(expr), nodeToRBT(right))
     expr = binary
   
   return expr
-
 
 proc parseGenericParam(p: Parser): Node =
   ## Парсит T или T: SomeType или T: Type1 + Type2
@@ -827,6 +902,7 @@ proc parseGenericParam(p: Parser): Node =
     let constraintType = p.consume(tkIdentifier, "Expected constraint type").lexeme
     let constraint = newNode(nkGenericConstraint)
     constraint.constraintType = constraintType
+    constraint.rbtNode = p.rbtBuilder.generateGenericConstraint(constraintType)
     result.genericConstraints.add(constraint)
     
     # Дополнительные ограничения через +
@@ -834,7 +910,13 @@ proc parseGenericParam(p: Parser): Node =
       let additionalType = p.consume(tkIdentifier, "Expected constraint type after '+'").lexeme
       let additionalConstraint = newNode(nkGenericConstraint)
       additionalConstraint.constraintType = additionalType
+      additionalConstraint.rbtNode = p.rbtBuilder.generateGenericConstraint(additionalType)
       result.genericConstraints.add(additionalConstraint)
+
+  var rbtConstraints: seq[JsonNode] = @[]
+  for constraint in result.genericConstraints:
+    rbtConstraints.add(nodeToRBT(constraint))
+  result.rbtNode = p.rbtBuilder.generateGenericParam(result.genericName, rbtConstraints)
 
 proc parseGenericParams(p: Parser): seq[Node] =
   ## Парсит [T, U: SomeType, V: AnotherType + MoreType]
@@ -943,6 +1025,7 @@ proc assignment(p: Parser): Node =
     target.ident = nameToken.lexeme
     target.line = nameToken.line
     target.column = nameToken.column
+    target.rbtNode = p.rbtBuilder.generateIdent(nameToken.lexeme)
     
     assign.assignTarget = target
     assign.assignVal = value
@@ -950,6 +1033,17 @@ proc assignment(p: Parser): Node =
     assign.varTypeModifier = typeModifier
     assign.line = assignOp.line
     assign.column = assignOp.column
+    
+    # Генерируем RBT для присваивания
+    let declTypeStr = case declType:
+      of dtDef: "dtDef"
+      of dtVal: "dtVal"
+      else: "dtNone"
+    
+    assign.rbtNode = p.rbtBuilder.generateAssign(
+      declTypeStr, "=", nodeToRBT(target), nodeToRBT(value), 
+      varType, $typeModifier
+    )
     
     return assign
   
@@ -981,6 +1075,11 @@ proc assignment(p: Parser): Node =
         assign.assignVal      = value
         assign.line           = operator.line
         assign.column         = operator.column
+
+        # Генерируем RBT для присваивания
+        assign.rbtNode = p.rbtBuilder.generateAssign(
+          "dtNone", assign.assignOp, nodeToRBT(expr), nodeToRBT(value), "", ""
+        )
 
         expr = assign
       else:
@@ -1047,6 +1146,12 @@ proc parameter(p: Parser): Node =
   result.paramDefault = defaultValue 
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для параметра
+  result.rbtNode = p.rbtBuilder.generateParam(
+    name, paramType, $typeModifier, nodeToRBT(defaultValue)
+  )
+  
   return result
 
 proc parseTablePair(p: Parser): Node =
@@ -1061,12 +1166,14 @@ proc parseTablePair(p: Parser): Node =
     key.ident = token.lexeme
     key.line = token.line
     key.column = token.column
+    key.rbtNode = p.rbtBuilder.generateIdent(token.lexeme)
   elif p.check(tkString):
     let token = p.advance()
     key = newNode(nkString)
     key.strVal = token.lexeme
     key.line = token.line
     key.column = token.column
+    key.rbtNode = p.rbtBuilder.generateString(token.lexeme)
   else:
     p.errors.add("Expected identifier or string as table key")
     return nil
@@ -1089,6 +1196,7 @@ proc parseTablePair(p: Parser): Node =
   result.pairValue = value
   result.line = key.line
   result.column = key.column
+  result.rbtNode = p.rbtBuilder.generateTablePair(nodeToRBT(key), nodeToRBT(value))
 
 proc parseTable(p: Parser): Node =
   result = newNode(nkTable)
@@ -1100,6 +1208,7 @@ proc parseTable(p: Parser): Node =
   # Проверяем пустую таблицу
   if p.check(tkRBrace):
     discard p.consume(tkRBrace, "Expected '}' after empty table")
+    result.rbtNode = p.rbtBuilder.generateTable(@[])
     return result
   
   # Парсим первую пару ключ-значение
@@ -1124,6 +1233,13 @@ proc parseTable(p: Parser): Node =
   while p.match(tkNewline): discard
   
   discard p.consume(tkRBrace, "Expected '}' after table")
+  
+  # Генерируем RBT для таблицы
+  var rbtPairs: seq[JsonNode] = @[]
+  for pair in result.tablePairs:
+    rbtPairs.add(nodeToRBT(pair))
+  result.rbtNode = p.rbtBuilder.generateTable(rbtPairs)
+  
   return result
 
 proc importStatement(p: Parser): Node =
@@ -1166,6 +1282,9 @@ proc importStatement(p: Parser): Node =
     while p.match(tkNewline): discard
     
   discard p.consume(tkRBrace, "Expected '}' after imports")
+  
+  # Генерируем RBT для импорта
+  #result.rbtNode = p.rbtBuilder.generateImport(result.imports)
 
 proc parseInitBlock(p: Parser): Node =
   discard p.consume(tkInit, "Expected 'init' keyword")
@@ -1197,6 +1316,12 @@ proc parseInitBlock(p: Parser): Node =
   result.initBody = p.parseBlock()
   result.line = p.previous().line
   result.column = p.previous().column
+  
+  # Генерируем RBT для init блока
+  var rbtParams: seq[JsonNode] = @[]
+  for param in params:
+    rbtParams.add(nodeToRBT(param))
+  result.rbtNode = p.rbtBuilder.generateInit(rbtParams, nodeToRBT(result.initBody))
 
 proc parseStateBody(p: Parser): Node =
   result = newNode(nkStateBody)
@@ -1213,19 +1338,32 @@ proc parseStateBody(p: Parser): Node =
       result.stateVars.add(p.assignment())
       
   discard p.consume(tkRBrace, "Expected '}' after state body")
+  
+  # Генерируем RBT для state body
+  var rbtMethods: seq[JsonNode] = @[]
+  var rbtVars: seq[JsonNode] = @[]
+  var rbtWatchers: seq[JsonNode] = @[]
+  
+  for meth in result.stateMethods:
+    rbtMethods.add(nodeToRBT(meth))
+  for variable in result.stateVars:
+    rbtVars.add(nodeToRBT(variable))
+  for watcher in result.stateWatchers:
+    rbtWatchers.add(nodeToRBT(watcher))
+  
+  result.rbtNode = p.rbtBuilder.generateStateBody(rbtMethods, rbtVars, rbtWatchers)
 
 proc parseState(p: Parser): Node =
   discard p.consume(tkState, "Expected 'state' keyword")
   let name = p.consume(tkIdentifier, "Expected state name").lexeme
   
-  # Добавим отладочный вывод
-  echo "Parsing state: ", name
-  
   result = newNode(nkState)
   result.stateName = name
-  result.stateBody = p.parseBlock()  # Используем существующий parseBlock
+  result.stateBody = p.parseBlock()
   
-  echo "Finished parsing state: ", name
+  # Генерируем RBT для state
+  result.rbtNode = p.rbtBuilder.generateState(name, nodeToRBT(result.stateBody))
+  
   return result
 
 proc forStatement(p: Parser): Node =
@@ -1246,10 +1384,10 @@ proc forStatement(p: Parser): Node =
 
   if p.match(tkDotDot):       
     inclusive = true
-    rangeEnd = p.expression()  # Добавляем парсинг конечного выражения
+    rangeEnd = p.expression()
   elif p.match(tkDotDotDot):  
     inclusive = false
-    rangeEnd = p.expression()  # Добавляем парсинг конечного выражения
+    rangeEnd = p.expression()
   else:
     # Если нет диапазона, то это итерация по коллекции
     result = newNode(nkFor)
@@ -1257,11 +1395,16 @@ proc forStatement(p: Parser): Node =
     result.forRange = (
       start: rangeStart,
       inclusive: true,
-      endExpr: nil  # nil означает итерацию по коллекции
+      endExpr: nil
     )
     result.forBody = p.parseBlock()
     result.line = token.line
     result.column = token.column
+    
+    # Генерируем RBT для for цикла
+    result.rbtNode = p.rbtBuilder.generateFor(
+      varName, nodeToRBT(rangeStart), true, newJNull(), nodeToRBT(result.forBody)
+    )
     return result
   
   # Блок кода
@@ -1277,6 +1420,12 @@ proc forStatement(p: Parser): Node =
   result.forBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для for цикла
+  result.rbtNode = p.rbtBuilder.generateFor(
+    varName, nodeToRBT(rangeStart), inclusive, nodeToRBT(rangeEnd), nodeToRBT(body)
+  )
+  
   return result
 
 proc eachStatement(p: Parser): Node =
@@ -1316,6 +1465,12 @@ proc eachStatement(p: Parser): Node =
   result.eachBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для each цикла
+  result.rbtNode = p.rbtBuilder.generateEach(
+    varName, nodeToRBT(startExpr), nodeToRBT(endExpr), 
+    nodeToRBT(stepExpr), nodeToRBT(whereExpr), nodeToRBT(body)
+  )
 
 proc whileStatement(p: Parser): Node =
   let token = p.consume(tkWhile, "Expected 'while' keyword")
@@ -1327,6 +1482,9 @@ proc whileStatement(p: Parser): Node =
   result.whileBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для while цикла
+  result.rbtNode = p.rbtBuilder.generateWhile(nodeToRBT(condition), nodeToRBT(body))
 
 proc infinitStatement(p: Parser): Node =
   let token = p.consume(tkInfinit, "Expected 'infinit' keyword")
@@ -1342,6 +1500,10 @@ proc infinitStatement(p: Parser): Node =
   result.infBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для infinit цикла
+  result.rbtNode = p.rbtBuilder.generateInfinit(nodeToRBT(delay), nodeToRBT(body))
+  
   return result
 
 proc repeatStatement(p: Parser): Node =
@@ -1362,6 +1524,12 @@ proc repeatStatement(p: Parser): Node =
   result.repBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для repeat цикла
+  result.rbtNode = p.rbtBuilder.generateRepeat(
+    nodeToRBT(count), nodeToRBT(delay), nodeToRBT(body)
+  )
+  
   return result
 
 proc eventStatement(p: Parser): Node =
@@ -1378,6 +1546,10 @@ proc eventStatement(p: Parser): Node =
   result.evBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для event
+  result.rbtNode = p.rbtBuilder.generateEvent(nodeToRBT(condition), nodeToRBT(body))
+  
   return result
 
 proc returnStatement(p: Parser): Node =
@@ -1395,6 +1567,10 @@ proc returnStatement(p: Parser): Node =
   result.retVal = value
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для return
+  result.rbtNode = p.rbtBuilder.generateReturn(nodeToRBT(value))
+  
   return result
 
 proc ifStatement(p: Parser): Node =
@@ -1426,8 +1602,17 @@ proc ifStatement(p: Parser): Node =
   result.ifElse = elseBranch
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для if statement
+  var rbtElifs: seq[JsonNode] = @[]
+  for elifBranch in elifBranches:
+    rbtElifs.add(p.rbtBuilder.generateElifBranch(nodeToRBT(elifBranch.cond), nodeToRBT(elifBranch.body)))
+  
+  result.rbtNode = p.rbtBuilder.generateIf(
+    nodeToRBT(condition), nodeToRBT(thenBranch), rbtElifs, nodeToRBT(elseBranch)
+  )
+  
   return result
-
 
 proc parseSwitchCase(p: Parser): Node =
   var conditions: seq[Node] = @[]
@@ -1445,6 +1630,7 @@ proc parseSwitchCase(p: Parser): Node =
     range.binOp = if op.kind == tkDotDot: ".." else: "..."
     range.binLeft = start
     range.binRight = endExpr
+    range.rbtNode = p.rbtBuilder.generateBinary(range.binOp, nodeToRBT(start), nodeToRBT(endExpr))
     conditions.add(range)
   else:
     conditions.add(start)
@@ -1459,6 +1645,7 @@ proc parseSwitchCase(p: Parser): Node =
     binary.binOp = if op.kind == tkAnd: "and" else: "or"
     binary.binLeft = conditions[conditions.len - 1]
     binary.binRight = right
+    binary.rbtNode = p.rbtBuilder.generateBinary(binary.binOp, nodeToRBT(binary.binLeft), nodeToRBT(right))
     
     conditions[conditions.len - 1] = binary
   
@@ -1473,6 +1660,15 @@ proc parseSwitchCase(p: Parser): Node =
   result.caseConditions = conditions
   result.caseBody = body
   result.caseGuard = guard
+  
+  # Генерируем RBT для switch case
+  var rbtConditions: seq[JsonNode] = @[]
+  for condition in conditions:
+    rbtConditions.add(nodeToRBT(condition))
+  
+  result.rbtNode = p.rbtBuilder.generateSwitchCase(
+    rbtConditions, nodeToRBT(body), nodeToRBT(guard)
+  )
 
 proc switchStatement(p: Parser): Node =
   let token = p.consume(tkSwitch, "Expected 'switch' keyword")
@@ -1504,6 +1700,15 @@ proc switchStatement(p: Parser): Node =
   result.switchDefault = defaultCase
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для switch statement
+  var rbtCases: seq[JsonNode] = @[]
+  for Сase in cases:
+    rbtCases.add(nodeToRBT(Сase))
+  
+  result.rbtNode = p.rbtBuilder.generateSwitch(
+    nodeToRBT(expr), rbtCases, nodeToRBT(defaultCase)
+  )
 
 proc tryStatement(p: Parser): Node =
   let token = p.consume(tkTry, "Expected 'try' keyword")
@@ -1527,6 +1732,12 @@ proc tryStatement(p: Parser): Node =
   result.tryCatch = catchBody
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для try statement
+  result.rbtNode = p.rbtBuilder.generateTry(
+    nodeToRBT(tryBody), errorType, nodeToRBT(catchBody)
+  )
+  
   return result
 
 proc lambdaDeclaration(p: Parser): Node =
@@ -1603,6 +1814,21 @@ proc lambdaDeclaration(p: Parser): Node =
   result.lambdaBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для lambda
+  var rbtParams: seq[JsonNode] = @[]
+  var rbtGenericParams: seq[JsonNode] = @[]
+  
+  for param in params:
+    rbtParams.add(nodeToRBT(param))
+  for genericParam in genericParams:
+    rbtGenericParams.add(nodeToRBT(genericParam))
+  
+  result.rbtNode = p.rbtBuilder.generateLambda(
+    rbtGenericParams, rbtParams, returnType, $returnTypeModifier, 
+    modifiers, nodeToRBT(body)
+  )
+  
   return result
 
 proc functionDeclaration(p: Parser): Node =
@@ -1688,6 +1914,21 @@ proc functionDeclaration(p: Parser): Node =
   result.funcPublic = public
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для функции
+  var rbtParams: seq[JsonNode] = @[]
+  var rbtGenericParams: seq[JsonNode] = @[]
+  
+  for param in params:
+    rbtParams.add(nodeToRBT(param))
+  for genericParam in genericParams:
+    rbtGenericParams.add(nodeToRBT(genericParam))
+  
+  result.rbtNode = p.rbtBuilder.generateFunction(
+    name, rbtGenericParams, rbtParams, returnType, $returnTypeModifier,
+    modifiers, nodeToRBT(body), public
+  )
+  
   return result
 
 proc methodDeclaration(p: Parser): Node =
@@ -1764,6 +2005,16 @@ proc methodDeclaration(p: Parser): Node =
   result.funcBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для метода
+  var rbtParams: seq[JsonNode] = @[]
+  for param in params:
+    rbtParams.add(nodeToRBT(param))
+  
+  result.rbtNode = p.rbtBuilder.generateMethod(
+    name, rbtParams, returnType, $returnTypeModifier, modifiers, nodeToRBT(body)
+  )
+  
   return result
 
 proc packDeclaration(p: Parser): Node =
@@ -1804,6 +2055,16 @@ proc packDeclaration(p: Parser): Node =
   result.packBody = body
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для pack
+  var rbtGenericParams: seq[JsonNode] = @[]
+  for genericParam in genericParams:
+    rbtGenericParams.add(nodeToRBT(genericParam))
+  
+  result.rbtNode = p.rbtBuilder.generatePack(
+    name, rbtGenericParams, parents, modifiers, nodeToRBT(body)
+  )
+  
   return result
 
 proc fieldDeclaration(p: Parser): Node =
@@ -1827,6 +2088,11 @@ proc fieldDeclaration(p: Parser): Node =
   result.fieldDefault = defaultValue
   result.line = nameToken.line
   result.column = nameToken.column
+  
+  # Генерируем RBT для field
+  result.rbtNode = p.rbtBuilder.generateField(
+    name, fieldType, nodeToRBT(defaultValue)
+  )
 
 proc structDeclaration(p: Parser): Node =
   let token = p.consume(tkStruct, "Expected 'struct' keyword")
@@ -1867,6 +2133,17 @@ proc structDeclaration(p: Parser): Node =
   result.structMethods = methods
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для struct
+  var rbtFields: seq[JsonNode] = @[]
+  var rbtMethods: seq[JsonNode] = @[]
+  
+  for field in fields:
+    rbtFields.add(nodeToRBT(field))
+  for meth in methods:
+    rbtMethods.add(nodeToRBT(meth))
+  
+  result.rbtNode = p.rbtBuilder.generateStruct(name, rbtFields, rbtMethods)
 
 proc enumVariant(p: Parser): Node =
   let nameToken = p.consume(tkIdentifier, "Expected variant name")
@@ -1884,6 +2161,9 @@ proc enumVariant(p: Parser): Node =
   result.variantValue = value
   result.line = nameToken.line
   result.column = nameToken.column
+  
+  # Генерируем RBT для enum variant
+  result.rbtNode = p.rbtBuilder.generateEnumVariant(name, nodeToRBT(value))
 
 proc enumDeclaration(p: Parser): Node =
   let token = p.consume(tkEnum, "Expected 'enum' keyword")
@@ -1924,6 +2204,17 @@ proc enumDeclaration(p: Parser): Node =
   result.enumMethods = methods
   result.line = token.line
   result.column = token.column
+  
+  # Генерируем RBT для enum
+  var rbtVariants: seq[JsonNode] = @[]
+  var rbtMethods: seq[JsonNode] = @[]
+  
+  for variant in variants:
+    rbtVariants.add(nodeToRBT(variant))
+  for meth in methods:
+    rbtMethods.add(nodeToRBT(meth))
+  
+  result.rbtNode = p.rbtBuilder.generateEnum(name, rbtVariants, rbtMethods)
 
 # Парсинг операторов
 proc expressionStatement(p: Parser): Node =
@@ -1937,6 +2228,10 @@ proc expressionStatement(p: Parser): Node =
   if expr != nil:
     result.line = expr.line
     result.column = expr.column
+  
+  # Генерируем RBT для expression statement
+  result.rbtNode = p.rbtBuilder.generateExprStmt(nodeToRBT(expr))
+  
   return result
 
 proc parsePackBody(p: Parser): Node =
@@ -1949,33 +2244,32 @@ proc parsePackBody(p: Parser): Node =
   else:
     discard p.consume(tkLBrace, "Expected '{' before block")
     while not p.check(tkRBrace) and not p.isAtEnd():
-      echo "Current token: ", p.peek().lexeme
       if p.check(tkFunc):
         let methodDef = p.methodDeclaration()
-        echo "Adding method kind: ", methodDef.kind
         statements.add(methodDef)
       elif p.check(tkInit):
         let initDef = p.parseInitBlock()
-        echo "Adding init kind: ", initDef.kind
         statements.add(initDef)
       elif p.check(tkDef) or p.check(tkVal):
         let varDef = p.assignment()
-        echo "Adding var kind: ", varDef.kind
         statements.add(varDef)
       elif p.check(tkState):
         let stateDef = p.parseState()
-        echo "Adding state kind: ", stateDef.kind
         statements.add(stateDef)
       else:
         let stmt = p.statement()
         if stmt != nil:
-          echo "Adding statement kind: ", stmt.kind
           statements.add(stmt)
     discard p.consume(tkRBrace, "Expected '}' after block")
 
   result = newNode(nkBlock)
   result.blockStmts = statements
-  echo "Final statements count: ", statements.len
+  
+  # Генерируем RBT для pack body
+  var rbtStmts: seq[JsonNode] = @[]
+  for stmt in statements:
+    rbtStmts.add(nodeToRBT(stmt))
+  result.rbtNode = p.rbtBuilder.generateBlock(rbtStmts)
 
 proc parseBlock(p: Parser): Node =
   result = newNode(nkBlock)
@@ -1986,6 +2280,13 @@ proc parseBlock(p: Parser): Node =
     let stmt = p.statement()
     if stmt != nil:
       result.blockStmts.add(stmt)
+    
+    # Генерируем RBT для однострочного блока
+    var rbtStmts: seq[JsonNode] = @[]
+    for stmt in result.blockStmts:
+      rbtStmts.add(nodeToRBT(stmt))
+    result.rbtNode = p.rbtBuilder.generateBlock(rbtStmts)
+    
     return result
 
   # Обычный блок с {}
@@ -1995,6 +2296,13 @@ proc parseBlock(p: Parser): Node =
     if stmt != nil:
       result.blockStmts.add(stmt)
   discard p.consume(tkRBrace, "Expected '}' after block")
+  
+  # Генерируем RBT для блока
+  var rbtStmts: seq[JsonNode] = @[]
+  for stmt in result.blockStmts:
+    rbtStmts.add(nodeToRBT(stmt))
+  result.rbtNode = p.rbtBuilder.generateBlock(rbtStmts)
+  
   return result
 
 proc statement(p: Parser): Node =
@@ -2061,10 +2369,429 @@ proc statement(p: Parser): Node =
     result = newNode(nkNoop)
     result.line = p.previous().line
     result.column = p.previous().column
+    result.rbtNode = p.rbtBuilder.generateNoop()
     return result
   
   # Если ничего из вышеперечисленного не подошло, то это выражение-оператор
-  return p.expressionStatement() # TODO: убрать это нахуй отсюда
+  return p.expressionStatement()
+
+proc `$`*(node: Node, indent: int = 0): string =
+  if node == nil:
+    return " ".repeat(indent) & "nil"
+  
+  let indentStr = " ".repeat(indent)
+
+  case node.kind
+  of nkProgram:
+    result = indentStr & "Program:\n"
+    for stmt in node.stmts:
+      result &= `$`(stmt, indent + 2) & "\n"
+  
+  of nkBlock:
+    result = indentStr & "Block:\n"
+    for stmt in node.blockStmts:
+      result &= `$`(stmt, indent + 2) & "\n"
+  
+  of nkExprStmt:
+    result = indentStr & "ExprStmt:\n"
+    result &= `$`(node.expr, indent + 2)
+  
+  of nkFuncDef:
+    result = indentStr & fmt"Function '{node.funcName}':"
+    if node.funcGenericParams.len > 0:
+      result &= "\n" & indentStr & "  Generic Parameters:\n"
+      for param in node.funcGenericParams:
+        result &= `$`(param, indent + 4) & "\n"
+    if node.funcParams.len > 0:
+      result &= "\n" & indentStr & "  Parameters:\n"
+      for param in node.funcParams:
+        result &= `$`(param, indent + 4) & "\n"
+    if node.funcMods.len > 0:
+      result &= indentStr & "  Modifiers: " & node.funcMods.join(", ") & "\n"
+    if node.funcRetType != "":
+      result &= indentStr & "  Return Type: " & node.funcRetType & "\n"
+    result &= indentStr & "  Body:\n"
+    result &= `$`(node.funcBody, indent + 4)
+
+  of nkLambdaDef:
+    result = indentStr & "Lambda:"
+    if node.lambdaGenericParams.len > 0:
+      result &= "\n" & indentStr & "  Generic Parameters:\n"
+      for param in node.lambdaGenericParams:
+        result &= `$`(param, indent + 4) & "\n"
+    if node.lambdaParams.len > 0:
+      result &= "\n" & indentStr & "  Parameters:\n"
+      for param in node.lambdaParams:
+        result &= `$`(param, indent + 4) & "\n"
+    if node.lambdaMods.len > 0:
+      result &= indentStr & "  Modifiers: " & node.lambdaMods.join(", ") & "\n"
+    if node.lambdaRetType != "":
+      result &= indentStr & "  Return Type: " & node.lambdaRetType & "\n"
+    result &= indentStr & "  Body:\n"
+    result &= `$`(node.lambdaBody, indent + 4)
+
+  of nkPackDef:
+    result = indentStr & fmt"Pack '{node.packName}':"
+    if node.packGenericParams.len > 0:
+      result &= "\n" & indentStr & "  Generic Parameters:\n"
+      for param in node.packGenericParams:
+        result &= `$`(param, indent + 4) & "\n"
+    if node.packParents.len > 0:
+      result &= "\n" & indentStr & "  Parents: " & node.packParents.join(", ")
+    if node.packMods.len > 0:
+      result &= "\n" & indentStr & "  Modifiers: " & node.packMods.join(", ")
+    result &= "\n" & indentStr & "  Body:\n"
+    result &= `$`(node.packBody, indent + 4)
+
+  of nkGenericParam:
+    result = indentStr & fmt"Generic Parameter '{node.genericName}'"
+    if node.genericConstraints.len > 0:
+      result &= ":\n"
+      for constraint in node.genericConstraints:
+        result &= `$`(constraint, indent + 2) & "\n"
+
+  of nkGenericConstraint:
+    result = indentStr & fmt"Constraint: {node.constraintType}"
+  
+  of nkParam:
+    result = indentStr & fmt"Parameter '{node.paramName}'"
+    if node.paramType != "":
+      result &= fmt": {node.paramType}"
+    if node.paramTypeModifier != '\0':
+      result &= fmt" ({node.paramTypeModifier})"
+    if node.paramDefault != nil:
+      result &= "\n" & indentStr & "  Default:\n"
+      result &= `$`(node.paramDefault, indent + 4)
+
+  of nkStructDef:
+    result = indentStr & fmt"Struct '{node.structName}':\n"
+    if node.structFields.len > 0:
+      result &= indentStr & "  Fields:\n"
+      for field in node.structFields:
+        result &= `$`(field, indent + 4) & "\n"
+    if node.structMethods.len > 0:
+      result &= indentStr & "  Methods:\n"
+      for meth in node.structMethods:
+        result &= `$`(meth, indent + 4) & "\n"
+
+  of nkEnumDef:
+    result = indentStr & fmt"Enum '{node.enumName}':\n"
+    if node.enumVariants.len > 0:
+      result &= indentStr & "  Variants:\n"
+      for variant in node.enumVariants:
+        result &= `$`(variant, indent + 4) & "\n"
+    if node.enumMethods.len > 0:
+      result &= indentStr & "  Methods:\n"
+      for meth in node.enumMethods:
+        result &= `$`(meth, indent + 4) & "\n"
+
+  of nkEnumVariant:
+    result = indentStr & fmt"Variant '{node.variantName}'"
+    if node.variantValue != nil:
+      result &= " = "
+      result &= `$`(node.variantValue, 0)
+
+  of nkFieldDef:
+    result = indentStr & fmt"Field '{node.fieldName}': {node.fieldType}"
+    if node.fieldDefault != nil:
+      result &= " = "
+      result &= `$`(node.fieldDefault, 0)
+
+  of nkStructInit:
+    result = indentStr & fmt"Struct Init '{node.structType}':\n"
+    for arg in node.structArgs:
+      result &= `$`(arg, indent + 2) & "\n"
+  
+  of nkIf:
+    result = indentStr & "If:\n"
+    result &= indentStr & "  Condition:\n"
+    result &= `$`(node.ifCond, indent + 4) & "\n"
+    result &= indentStr & "  Then:\n"
+    result &= `$`(node.ifThen, indent + 4)
+    
+    if node.ifElifs.len > 0:
+      for i, elifBranch in node.ifElifs:
+        result &= "\n" & indentStr & "  Elif Condition:\n"
+        result &= `$`(elifBranch.cond, indent + 4) & "\n"
+        result &= indentStr & "  Elif Branch:\n"
+        result &= `$`(elifBranch.body, indent + 4)
+    
+    if node.ifElse != nil:
+      result &= "\n" & indentStr & "  Else:\n"
+      result &= `$`(node.ifElse, indent + 4)
+
+  of nkSwitch:
+    result = indentStr & "Switch:\n"
+    result &= indentStr & "  Expression:\n"
+    result &= `$`(node.switchExpr, indent + 4) & "\n"
+    result &= indentStr & "  Cases:\n"
+    for Сase in node.switchCases:
+      result &= `$`(Сase, indent + 4) & "\n"
+    if node.switchDefault != nil:
+      result &= indentStr & "  Default:\n"
+      result &= `$`(node.switchDefault, indent + 4)
+
+  of nkSwitchCase:
+    result = indentStr & "Case:\n"
+    result &= indentStr & "  Conditions:\n"
+    for condition in node.caseConditions:
+      result &= `$`(condition, indent + 4) & "\n"
+    if node.caseGuard != nil:
+      result &= indentStr & "  Guard:\n"
+      result &= `$`(node.caseGuard, indent + 4) & "\n"
+    result &= indentStr & "  Body:\n"
+    result &= `$`(node.caseBody, indent + 4)
+  
+  of nkFor:
+    result = indentStr & fmt"For '{node.forVar}' in "
+    result &= "\n" & indentStr & "  Start:\n"
+    result &= `$`(node.forRange.start, indent + 4)
+    result &= "\n" & indentStr & "  Inclusive: " & $node.forRange.inclusive
+    if node.forRange.endExpr != nil:
+      result &= "\n" & indentStr & "  End:\n"
+      result &= `$`(node.forRange.endExpr, indent + 4)
+    result &= "\n" & indentStr & "  Body:\n"
+    result &= `$`(node.forBody, indent + 4)
+
+  of nkEach:
+    result = indentStr & fmt"Each '{node.eachVar}':\n"
+    result &= indentStr & "  From:\n"
+    result &= `$`(node.eachStart, indent + 4) & "\n"
+    result &= indentStr & "  To:\n"
+    result &= `$`(node.eachEnd, indent + 4)
+    if node.eachStep != nil:
+      result &= "\n" & indentStr & "  Step:\n"
+      result &= `$`(node.eachStep, indent + 4)
+    if node.eachWhere != nil:
+      result &= "\n" & indentStr & "  Where:\n"
+      result &= `$`(node.eachWhere, indent + 4)
+    result &= "\n" & indentStr & "  Body:\n"
+    result &= `$`(node.eachBody, indent + 4)
+
+  of nkWhile:
+    result = indentStr & "While:\n"
+    result &= indentStr & "  Condition:\n"
+    result &= `$`(node.whileCond, indent + 4) & "\n"
+    result &= indentStr & "  Body:\n"
+    result &= `$`(node.whileBody, indent + 4)
+  
+  of nkInfinit:
+    result = indentStr & "Infinit:\n"
+    result &= indentStr & "  Delay:\n"
+    result &= `$`(node.infDelay, indent + 4)
+    result &= "\n" & indentStr & "  Body:\n"
+    result &= `$`(node.infBody, indent + 4)
+
+  of nkInit:
+    result = indentStr & "Init:\n"
+    if node.initParams.len > 0:
+      result &= indentStr & "  Parameters:\n"
+      for param in node.initParams:
+        result &= `$`(param, indent + 4) & "\n"
+    result &= indentStr & "  Body:\n"
+    result &= `$`(node.initBody, indent + 4)
+
+  of nkState:
+    result = indentStr & fmt"State '{node.stateName}':\n"
+    result &= `$`(node.stateBody, indent + 2)
+
+  of nkStateBody:
+    result = indentStr & "State Body:\n"
+    if node.stateMethods.len > 0:
+      result &= indentStr & "  Methods:\n"
+      for meth in node.stateMethods:
+        result &= `$`(meth, indent + 4) & "\n"
+    if node.stateVars.len > 0:
+      result &= indentStr & "  Variables:\n"
+      for variable in node.stateVars:
+        result &= `$`(variable, indent + 4) & "\n"
+    if node.stateWatchers.len > 0:
+      result &= indentStr & "  Watchers:\n"
+      for watcher in node.stateWatchers:
+        result &= `$`(watcher, indent + 4) & "\n"
+  
+  of nkRepeat:
+    result = indentStr & "Repeat:\n"
+    result &= indentStr & "  Count:\n"
+    result &= `$`(node.repCount, indent + 4)
+    result &= "\n" & indentStr & "  Delay:\n"
+    result &= `$`(node.repDelay, indent + 4)
+    result &= "\n" & indentStr & "  Body:\n"
+    result &= `$`(node.repBody, indent + 4)
+  
+  of nkTry:
+    result = indentStr & "Try:\n"
+    result &= indentStr & "  Try Block:\n"
+    result &= `$`(node.tryBody, indent + 4)
+    result &= "\n" & indentStr & "  Error Type: " & node.tryErrType
+    result &= "\n" & indentStr & "  Catch Block:\n"
+    result &= `$`(node.tryCatch, indent + 4)
+  
+  of nkEvent:
+    result = indentStr & "Event:\n"
+    result &= indentStr & "  Condition:\n"
+    result &= `$`(node.evCond, indent + 4)
+    result &= "\n" & indentStr & "  Body:\n"
+    result &= `$`(node.evBody, indent + 4)
+  
+  of nkImport:
+    result = indentStr & "Import:\n"
+    for imp in node.imports:
+      result &= indentStr & "  Module: " & imp.path.join(".")
+      if imp.isAll:
+        result &= " [*]"
+      elif imp.items.len > 0:
+        result &= " [" & imp.items.join(", ") & "]"
+      if imp.alias.len > 0:
+        result &= " as " & imp.alias
+      result &= "\n"
+  
+  of nkReturn:
+    result = indentStr & "Return:\n"
+    if node.retVal != nil:
+      result &= `$`(node.retVal, indent + 2)
+    else:
+      result &= indentStr & "  <void>"
+  
+  of nkBinary:
+    result = indentStr & "Binary " & node.binOp & ":\n"
+    result &= indentStr & "  Left:\n"
+    result &= `$`(node.binLeft, indent + 4) & "\n"
+    result &= indentStr & "  Right:\n"
+    result &= `$`(node.binRight, indent + 4)
+  
+  of nkUnary:
+    result = indentStr & "Unary " & node.unOp & ":\n"
+    result &= `$`(node.unExpr, indent + 2)
+  
+  of nkCall:
+    result = indentStr & "Call:\n"
+    result &= indentStr & "  Function:\n"
+    result &= `$`(node.callFunc, indent + 4) & "\n"
+    result &= indentStr & "  Arguments:\n"
+    for arg in node.callArgs:
+      result &= `$`(arg, indent + 4) & "\n"
+  
+  of nkProperty:
+    result = indentStr & "Property Access:\n"
+    result &= indentStr & "  Object:\n"
+    result &= `$`(node.propObj, indent + 4) & "\n"
+    result &= indentStr & "  Property: " & node.propName
+  
+  of nkGroup:
+    result = indentStr & "Group:\n"
+    result &= `$`(node.groupExpr, indent + 2)
+  
+  of nkAssign:
+    result = indentStr & "Assign " & node.assignOp
+    if node.declType != dtNone:
+      result &= " (" & $node.declType & ")"
+    if node.varType != "":
+      result &= " : " & node.varType
+      if node.varTypeModifier != '\0':
+        result &= " (" & node.varTypeModifier & ")"
+    result &= ":\n"
+    result &= indentStr & "  Target:\n"
+    result &= `$`(node.assignTarget, indent + 4) & "\n"
+    result &= indentStr & "  Value:\n"
+    result &= `$`(node.assignVal, indent + 4)
+  
+  of nkIdent:
+    result = indentStr & "Identifier: " & node.ident
+  
+  of nkNumber:
+    result = indentStr & "Number: " & node.numVal
+
+  of nkString:
+    result = indentStr & "String: \"" & node.strVal & "\""
+
+  of nkFormatString:
+    result = indentStr & "FormatString (" & node.formatType & "): \"" & node.formatContent & "\""
+
+  of nkTypeCheck:
+    result = indentStr & "TypeCheck:\n"
+    result &= indentStr & "  Type: " & node.checkType & "\n"
+    if node.checkFunc != "":
+      result &= indentStr & "  Function: " & node.checkFunc
+    if node.checkBlock != nil:
+      result &= "\n" & indentStr & "  Block:\n"
+      result &= `$`(node.checkBlock, indent + 4)
+    if node.checkExpr != nil:
+      result &= "\n" & indentStr & "  Expression:\n"
+      result &= `$`(node.checkExpr, indent + 4)
+
+  of nkArray:
+    result = indentStr & "Array:\n"
+    for element in node.elements:
+      result &= `$`(element, indent + 2) & "\n"
+
+  of nkTable:
+    result = indentStr & "Table:\n"
+    for pair in node.tablePairs:
+      result &= `$`(pair, indent + 2) & "\n"
+
+  of nkTablePair:
+    result = indentStr & "TablePair:\n"
+    result &= indentStr & "  Key:\n"
+    result &= `$`(node.pairKey, indent + 4) & "\n"
+    result &= indentStr & "  Value:\n"
+    result &= `$`(node.pairValue, indent + 4)
+
+  of nkArrayAccess:
+    result = indentStr & "ArrayAccess:\n"
+    result &= indentStr & "  Array:\n"
+    result &= `$`(node.array, indent + 4) & "\n"
+    result &= indentStr & "  Index:\n"
+    result &= `$`(node.index, indent + 4)
+
+  of nkSlice:
+    result = indentStr & "Slice:\n"
+    result &= indentStr & "  Array:\n"
+    result &= `$`(node.sliceArray, indent + 4) & "\n"
+    result &= indentStr & "  Start:\n"
+    result &= `$`(node.startIndex, indent + 4) & "\n"
+    result &= indentStr & "  End:\n"
+    result &= `$`(node.endIndex, indent + 4) & "\n"
+    result &= indentStr & "  Inclusive: " & $node.inclusive
+
+  of nkTupleAccess:
+    result = indentStr & "TupleAccess:\n"
+    result &= indentStr & "  Tuple:\n"
+    result &= `$`(node.tupleObj, indent + 4) & "\n"
+    result &= indentStr & "  Field Index: " & $node.fieldIndex
+
+  of nkRangeExpr:
+    result = indentStr & "Range:\n"
+    result &= indentStr & "  Start:\n"
+    result &= `$`(node.rangeStart, indent + 4) & "\n"
+    result &= indentStr & "  End:\n"
+    result &= `$`(node.rangeEnd, indent + 4)
+    if node.rangeStep != nil:
+      result &= "\n" & indentStr & "  Step:\n"
+      result &= `$`(node.rangeStep, indent + 4)
+
+  of nkChainCall:
+    result = indentStr & "ChainCall:\n"
+    for i, call in node.chain:
+      result &= indentStr & fmt"  Call {i}:\n"
+      result &= `$`(call, indent + 4) & "\n"
+
+  of nkSubscript:
+    result = indentStr & "Subscript:\n"
+    result &= indentStr & "  Container:\n"
+    result &= `$`(node.container, indent + 4) & "\n"
+    result &= indentStr & "  Indices:\n"
+    for index in node.indices:
+      result &= `$`(index, indent + 4) & "\n"
+  
+  of nkBool:
+    result = indentStr & "Boolean: " & $node.boolVal
+  
+  of nkNoop:
+    result = indentStr & "Noop"
+
+proc `$`*(node: Node): string =
+  return `$`(node, 0)
 
 proc parse*(p: Parser): Node =
   ## Парсит токены и строит AST

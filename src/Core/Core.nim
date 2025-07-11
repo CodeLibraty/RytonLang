@@ -2,6 +2,8 @@ import std/[strutils, strformat, tables, terminal, os]
 import compiler/lexer
 import compiler/parser
 import compiler/codegen
+import compiler/codeGen
+import bytecode/librbt
 import compiler/ast
 import analyzer/semantic
 
@@ -29,6 +31,7 @@ type
 
   RytonCompiler* = ref object
     sourceCode*: string
+    bytecodeBuilder*: RBTBuilder
     tokens*: seq[Token]
     outputPath*: string
     verbose*: bool
@@ -38,6 +41,7 @@ proc newCompiler*(sourceCode: string, outputPath: string = "", verbose: bool = f
   ## Создает новый экземпляр компилятора
   result = RytonCompiler(
     sourceCode: sourceCode,
+    bytecodeBuilder: createRBTGenerator(),
     tokens: @[],
     outputPath: outputPath,
     verbose: verbose
@@ -321,6 +325,35 @@ proc generateCode*(self: RytonCompiler): CompilationResult =
       phase: phCodeGeneration
     )
 
+proc generateBytecode*(self: RytonCompiler): CompilationResult =
+  ## Генерирует байт-код из AST и сохраняет в файл
+  try:
+    if self.ast == nil:
+      return CompilationResult(
+        success: false,
+        errorMessage: "AST is nil, cannot generate bytecode",
+        errorLine: 0,
+        errorColumn: 0
+      )
+    
+    # Генерируем и сохраняем байт-код в файл
+    generateAndSave(self.ast, "name.rbt")
+    
+    return CompilationResult(
+      success: true,
+      errorMessage: "",
+      errorLine: 0,
+      errorColumn: 0
+    )
+    
+  except Exception as e:
+    return CompilationResult(
+      success: false,
+      errorMessage: e.msg,
+      errorLine: 0,
+      errorColumn: 0
+    )
+
 proc formatError(errorType: string, message: string, errorLine: int, errorColumn: int): string =
   let width = terminal.terminalWidth()
   let line = "─".repeat(width - 1)
@@ -364,7 +397,16 @@ proc compile*(self: RytonCompiler): CompilationResult =
     echo formatError(fmt"SemanticError", semanticResult.errorMessage, semanticResult.errorLine, semanticResult.errorColumn)
     #return semanticResult
   echo fmt"├─{FgGreen} ✓ Semantic analysis completed successfully {Reset}"
-  
+
+  echo fmt"├──{FgYellow} Starting bytecode generation... {Reset}"
+  let bytecodeResult = self.generateBytecode()
+  if not bytecodeResult.success:
+    echo fmt"├─{FgRed} ✗ Bytecode generation failed. {Reset}"
+    echo formatError(fmt"BytecodeError", bytecodeResult.errorMessage, bytecodeResult.errorLine, bytecodeResult.errorColumn)
+    #return bytecodeResult
+
+  echo fmt"├─{FgGreen} ✓ Bytecode generation completed successfully. {Reset}"
+
   # Генерация кода
   echo fmt"├──{FgYellow} Starting code generation... {Reset}"
   let resultCode = self.generateCode()

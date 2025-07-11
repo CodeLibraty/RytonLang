@@ -15,7 +15,7 @@ module import {
  |                       |
 <\-----------------------/>
 
-struct myStruct {
+struct MyStruct {
     x: Int,
     y: Int,
     z: Int = 10,
@@ -33,12 +33,23 @@ enum Status {
         }
     }
 }
+// коментарии
+</createButton("name") <= OnClick : lambda {
+    print("хуйня")
+}
 
-func Main[T]:T {
+createButton() {
+    name: "Name"
+    OnClick: lambda => noop
+}/>
+
+
+func Main[T: Sas](data: T):Array[T] {
     def stat:Status = Success
     stat.message().print() 
 
-    def myStruct = newmyStruct(x = 10, y = 20)
+    def myStruct = newMyStruct(x = 10, y = 20)
+
     print(myStruct.x)
     print(myStruct.y)
     print(myStruct.z)

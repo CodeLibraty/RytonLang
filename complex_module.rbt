@@ -1,0 +1,509 @@
+{
+  "header": "RBT",
+  "version": "1.0",
+  "ast": {
+    "kind": "nkProgram",
+    "body": [
+      {
+        "kind": "nkStructDef",
+        "name": "Vector2D",
+        "fields": [
+          {
+            "kind": "nkFieldDef",
+            "name": "x",
+            "fieldType": "float",
+            "defaultValue": {
+              "kind": "nkNumber",
+              "numVal": "0.0"
+            }
+          },
+          {
+            "kind": "nkFieldDef",
+            "name": "y",
+            "fieldType": "float",
+            "defaultValue": {
+              "kind": "nkNumber",
+              "numVal": "0.0"
+            }
+          }
+        ],
+        "methods": [
+          {
+            "kind": "nkFuncDef",
+            "name": "length",
+            "params": [],
+            "generics": [],
+            "returnType": "float",
+            "returnTypeModifier": "",
+            "modifiers": [
+              "pure"
+            ],
+            "body": {
+              "kind": "nkBlock",
+              "body": [
+                {
+                  "kind": "nkReturn",
+                  "value": {
+                    "kind": "nkCall",
+                    "function": {
+                      "kind": "nkIdent",
+                      "ident": "sqrt"
+                    },
+                    "args": [
+                      {
+                        "kind": "nkBinary",
+                        "binOp": "+",
+                        "binLeft": {
+                          "kind": "nkBinary",
+                          "binOp": "*",
+                          "binLeft": {
+                            "kind": "nkProperty",
+                            "object": {
+                              "kind": "nkIdent",
+                              "ident": "self"
+                            },
+                            "property": "x"
+                          },
+                          "binRight": {
+                            "kind": "nkProperty",
+                            "object": {
+                              "kind": "nkIdent",
+                              "ident": "self"
+                            },
+                            "property": "x"
+                          }
+                        },
+                        "binRight": {
+                          "kind": "nkBinary",
+                          "binOp": "*",
+                          "binLeft": {
+                            "kind": "nkProperty",
+                            "object": {
+                              "kind": "nkIdent",
+                              "ident": "self"
+                            },
+                            "property": "y"
+                          },
+                          "binRight": {
+                            "kind": "nkProperty",
+                            "object": {
+                              "kind": "nkIdent",
+                              "ident": "self"
+                            },
+                            "property": "y"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "public": true
+          }
+        ]
+      },
+      {
+        "kind": "nkEnumDef",
+        "name": "Direction",
+        "variants": [
+          {
+            "kind": "nkEnumVariant",
+            "name": "North",
+            "value": {
+              "kind": "nkNumber",
+              "numVal": "0"
+            }
+          },
+          {
+            "kind": "nkEnumVariant",
+            "name": "South",
+            "value": {
+              "kind": "nkNumber",
+              "numVal": "1"
+            }
+          },
+          {
+            "kind": "nkEnumVariant",
+            "name": "East",
+            "value": {
+              "kind": "nkNumber",
+              "numVal": "2"
+            }
+          },
+          {
+            "kind": "nkEnumVariant",
+            "name": "West",
+            "value": {
+              "kind": "nkNumber",
+              "numVal": "3"
+            }
+          }
+        ],
+        "methods": []
+      },
+      {
+        "kind": "nkFuncDef",
+        "name": "calculateDistance",
+        "params": [
+          {
+            "kind": "nkParam",
+            "name": "p1",
+            "paramType": "Vector2D",
+            "paramTypeModifier": "",
+            "defaultValue": null
+          },
+          {
+            "kind": "nkParam",
+            "name": "p2",
+            "paramType": "Vector2D",
+            "paramTypeModifier": "",
+            "defaultValue": null
+          }
+        ],
+        "generics": [],
+        "returnType": "float",
+        "returnTypeModifier": "",
+        "modifiers": [
+          "pure"
+        ],
+        "body": {
+          "kind": "nkBlock",
+          "body": [
+            {
+              "kind": "nkAssign",
+              "declType": "dtDef",
+              "assignOp": "=",
+              "target": {
+                "kind": "nkIdent",
+                "ident": "dx"
+              },
+              "value": {
+                "kind": "nkBinary",
+                "binOp": "-",
+                "binLeft": {
+                  "kind": "nkProperty",
+                  "object": {
+                    "kind": "nkIdent",
+                    "ident": "p2"
+                  },
+                  "property": "x"
+                },
+                "binRight": {
+                  "kind": "nkProperty",
+                  "object": {
+                    "kind": "nkIdent",
+                    "ident": "p1"
+                  },
+                  "property": "x"
+                }
+              },
+              "varType": "float",
+              "varTypeModifier": ""
+            },
+            {
+              "kind": "nkAssign",
+              "declType": "dtDef",
+              "assignOp": "=",
+              "target": {
+                "kind": "nkIdent",
+                "ident": "dy"
+              },
+              "value": {
+                "kind": "nkBinary",
+                "binOp": "-",
+                "binLeft": {
+                  "kind": "nkProperty",
+                  "object": {
+                    "kind": "nkIdent",
+                    "ident": "p2"
+                  },
+                  "property": "y"
+                },
+                "binRight": {
+                  "kind": "nkProperty",
+                  "object": {
+                    "kind": "nkIdent",
+                    "ident": "p1"
+                  },
+                  "property": "y"
+                }
+              },
+              "varType": "float",
+              "varTypeModifier": ""
+            },
+            {
+              "kind": "nkReturn",
+              "value": {
+                "kind": "nkCall",
+                "function": {
+                  "kind": "nkIdent",
+                  "ident": "sqrt"
+                },
+                "args": [
+                  {
+                    "kind": "nkBinary",
+                    "binOp": "+",
+                    "binLeft": {
+                      "kind": "nkBinary",
+                      "binOp": "*",
+                      "binLeft": {
+                        "kind": "nkIdent",
+                        "ident": "dx"
+                      },
+                      "binRight": {
+                        "kind": "nkIdent",
+                        "ident": "dx"
+                      }
+                    },
+                    "binRight": {
+                      "kind": "nkBinary",
+                      "binOp": "*",
+                      "binLeft": {
+                        "kind": "nkIdent",
+                        "ident": "dy"
+                      },
+                      "binRight": {
+                        "kind": "nkIdent",
+                        "ident": "dy"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "public": true
+      },
+      {
+        "kind": "nkFuncDef",
+        "name": "sumArray",
+        "params": [
+          {
+            "kind": "nkParam",
+            "name": "arr",
+            "paramType": "Array[float]",
+            "paramTypeModifier": "",
+            "defaultValue": null
+          }
+        ],
+        "generics": [],
+        "returnType": "float",
+        "returnTypeModifier": "",
+        "modifiers": [],
+        "body": {
+          "kind": "nkBlock",
+          "body": [
+            {
+              "kind": "nkAssign",
+              "declType": "dtDef",
+              "assignOp": "=",
+              "target": {
+                "kind": "nkIdent",
+                "ident": "sum"
+              },
+              "value": {
+                "kind": "nkNumber",
+                "numVal": "0.0"
+              },
+              "varType": "float",
+              "varTypeModifier": ""
+            },
+            {
+              "kind": "nkFor",
+              "variable": "item",
+              "range": {
+                "start": {
+                  "kind": "nkIdent",
+                  "ident": "arr"
+                },
+                "endExpr": null,
+                "inclusive": false
+              },
+              "body": {
+                "kind": "nkBlock",
+                "body": [
+                  {
+                    "kind": "nkAssign",
+                    "declType": "dtNone",
+                    "assignOp": "+=",
+                    "target": {
+                      "kind": "nkIdent",
+                      "ident": "sum"
+                    },
+                    "value": {
+                      "kind": "nkIdent",
+                      "ident": "item"
+                    },
+                    "varType": "",
+                    "varTypeModifier": ""
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "nkReturn",
+              "value": {
+                "kind": "nkIdent",
+                "ident": "sum"
+              }
+            }
+          ]
+        },
+        "public": true
+      },
+      {
+        "kind": "nkFuncDef",
+        "name": "main",
+        "params": [],
+        "generics": [],
+        "returnType": "int",
+        "returnTypeModifier": "",
+        "modifiers": [],
+        "body": {
+          "kind": "nkBlock",
+          "body": [
+            {
+              "kind": "nkCall",
+              "function": {
+                "kind": "nkIdent",
+                "ident": "echo"
+              },
+              "args": [
+                {
+                  "kind": "nkString",
+                  "strVal": "Testing Math Module"
+                }
+              ]
+            },
+            {
+              "kind": "nkAssign",
+              "declType": "dtDef",
+              "assignOp": "=",
+              "target": {
+                "kind": "nkIdent",
+                "ident": "v1"
+              },
+              "value": {
+                "kind": "nkStructInit",
+                "structType": "Vector2D",
+                "args": [
+                  {
+                    "kind": "nkAssign",
+                    "declType": "dtNone",
+                    "assignOp": "=",
+                    "target": {
+                      "kind": "nkIdent",
+                      "ident": "x"
+                    },
+                    "value": {
+                      "kind": "nkNumber",
+                      "numVal": "3.0"
+                    },
+                    "varType": "",
+                    "varTypeModifier": ""
+                  },
+                  {
+                    "kind": "nkAssign",
+                    "declType": "dtNone",
+                    "assignOp": "=",
+                    "target": {
+                      "kind": "nkIdent",
+                      "ident": "y"
+                    },
+                    "value": {
+                      "kind": "nkNumber",
+                      "numVal": "4.0"
+                    },
+                    "varType": "",
+                    "varTypeModifier": ""
+                  }
+                ]
+              },
+              "varType": "Vector2D",
+              "varTypeModifier": ""
+            },
+            {
+              "kind": "nkAssign",
+              "declType": "dtDef",
+              "assignOp": "=",
+              "target": {
+                "kind": "nkIdent",
+                "ident": "length"
+              },
+              "value": {
+                "kind": "nkCall",
+                "function": {
+                  "kind": "nkProperty",
+                  "object": {
+                    "kind": "nkIdent",
+                    "ident": "v1"
+                  },
+                  "property": "length"
+                },
+                "args": []
+              },
+              "varType": "float",
+              "varTypeModifier": ""
+            },
+            {
+              "kind": "nkCall",
+              "function": {
+                "kind": "nkIdent",
+                "ident": "echo"
+              },
+              "args": [
+                {
+                  "kind": "nkBinary",
+                  "binOp": "+",
+                  "binLeft": {
+                    "kind": "nkString",
+                    "strVal": "Vector length: "
+                  },
+                  "binRight": {
+                    "kind": "nkIdent",
+                    "ident": "length"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "nkReturn",
+              "value": {
+                "kind": "nkNumber",
+                "numVal": "0"
+              }
+            }
+          ]
+        },
+        "public": true
+      }
+    ]
+  },
+  "namespaces": {
+    "std": {
+      "access": "private",
+      "content": []
+    },
+    "internal": {
+      "access": "private",
+      "content": []
+    },
+    "math": {
+      "access": "private",
+      "content": []
+    }
+  },
+  "META": {
+    "sourceLang": "ryton",
+    "sourceLangVersion": "1.0",
+    "sourceFile": "math_module.ryt",
+    "outputFile": "math_module.nim",
+    "generatorName": "RBTGENCL",
+    "generatorVersion": "0.2.5",
+    "projectName": "Test",
+    "projectAuthor": "Author",
+    "projectVersion": "1.0.0"
+  }
+}

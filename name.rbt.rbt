@@ -1,0 +1,442 @@
+{
+  "header": "RBT",
+  "version": "1.0",
+  "ast": {
+    "kind": "nkProgram",
+    "body": [
+      {
+        "kind": "nkImport",
+        "imports": [
+          {
+            "path": [
+              "std",
+              "Core",
+              "stdTypes"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          },
+          {
+            "path": [
+              "std",
+              "Core",
+              "stdModifiers"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          },
+          {
+            "path": [
+              "std",
+              "Core",
+              "stdFunctions"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          },
+          {
+            "path": [
+              "std",
+              "Shell"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          },
+          {
+            "path": [
+              "std",
+              "Files"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          },
+          {
+            "path": [
+              "std",
+              "Info"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          },
+          {
+            "path": [
+              "std",
+              "Paths"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          },
+          {
+            "path": [
+              "std",
+              "fStrings"
+            ],
+            "alias": "",
+            "filters": [],
+            "items": [],
+            "isAll": false
+          }
+        ]
+      },
+      {
+        "kind": "nkStructDef",
+        "name": "MyStruct",
+        "fields": [
+          {
+            "kind": "nkFieldDef",
+            "name": "x",
+            "fieldType": "Int",
+            "defaultValue": null
+          },
+          {
+            "kind": "nkFieldDef",
+            "name": "y",
+            "fieldType": "Int",
+            "defaultValue": null
+          },
+          {
+            "kind": "nkFieldDef",
+            "name": "z",
+            "fieldType": "Int",
+            "defaultValue": {
+              "kind": "nkNumber",
+              "numVal": "10"
+            }
+          }
+        ],
+        "methods": []
+      },
+      {
+        "kind": "nkEnumDef",
+        "name": "Status",
+        "variants": [
+          {
+            "kind": "nkEnumVariant",
+            "name": "Success",
+            "value": null
+          },
+          {
+            "kind": "nkEnumVariant",
+            "name": "Error",
+            "value": null
+          }
+        ],
+        "methods": [
+          {
+            "kind": "nkFuncDef",
+            "name": "isOk",
+            "params": [],
+            "generics": [],
+            "returnType": "Bool",
+            "returnTypeModifier": "\u0000",
+            "modifiers": [],
+            "body": {
+              "kind": "nkBlock",
+              "body": [
+                {
+                  "kind": "nkReturn",
+                  "value": {
+                    "kind": "nkBinary",
+                    "binOp": "==",
+                    "binLeft": {
+                      "kind": "nkIdent",
+                      "ident": "this"
+                    },
+                    "binRight": {
+                      "kind": "nkIdent",
+                      "ident": "Success"
+                    }
+                  }
+                }
+              ]
+            },
+            "public": true
+          },
+          {
+            "kind": "nkFuncDef",
+            "name": "message",
+            "params": [],
+            "generics": [],
+            "returnType": "String",
+            "returnTypeModifier": "\u0000",
+            "modifiers": [],
+            "body": {
+              "kind": "nkBlock",
+              "body": [
+                {
+                  "kind": "nkSwitch",
+                  "expr": {
+                    "kind": "nkIdent",
+                    "ident": "this"
+                  },
+                  "cases": [
+                    {
+                      "kind": "nkSwitchCase",
+                      "conditions": [
+                        {
+                          "kind": "nkIdent",
+                          "ident": "Success"
+                        }
+                      ],
+                      "body": {
+                        "kind": "nkBlock",
+                        "body": [
+                          {
+                            "kind": "nkReturn",
+                            "value": {
+                              "kind": "nkString",
+                              "strVal": "Operation completed"
+                            }
+                          }
+                        ]
+                      },
+                      "guard": null
+                    },
+                    {
+                      "kind": "nkSwitchCase",
+                      "conditions": [
+                        {
+                          "kind": "nkIdent",
+                          "ident": "Error"
+                        }
+                      ],
+                      "body": {
+                        "kind": "nkBlock",
+                        "body": [
+                          {
+                            "kind": "nkReturn",
+                            "value": {
+                              "kind": "nkString",
+                              "strVal": "Operation failed"
+                            }
+                          }
+                        ]
+                      },
+                      "guard": null
+                    }
+                  ],
+                  "defaultCase": null
+                }
+              ]
+            },
+            "public": true
+          }
+        ]
+      },
+      {
+        "kind": "nkFuncDef",
+        "name": "Main",
+        "params": [
+          {
+            "kind": "nkParam",
+            "name": "data",
+            "paramType": "T",
+            "paramTypeModifier": "\u0000",
+            "defaultValue": null
+          }
+        ],
+        "generics": [
+          {
+            "kind": "nkGenericParam",
+            "name": "T",
+            "constraints": [
+              {
+                "kind": "nkGenericConstraint",
+                "constraintType": "Sas"
+              }
+            ]
+          }
+        ],
+        "returnType": "Array[T]",
+        "returnTypeModifier": "\u0000",
+        "modifiers": [],
+        "body": {
+          "kind": "nkBlock",
+          "body": [
+            {
+              "kind": "nkExprStmt",
+              "expr": {
+                "kind": "nkAssign",
+                "declType": "dtDef",
+                "assignOp": "=",
+                "target": {
+                  "kind": "nkIdent",
+                  "ident": "stat"
+                },
+                "value": {
+                  "kind": "nkIdent",
+                  "ident": "Success"
+                },
+                "varType": "Status",
+                "varTypeModifier": "\u0000"
+              }
+            },
+            {
+              "kind": "nkExprStmt",
+              "expr": {
+                "kind": "nkCall",
+                "function": {
+                  "kind": "nkProperty",
+                  "object": {
+                    "kind": "nkCall",
+                    "function": {
+                      "kind": "nkProperty",
+                      "object": {
+                        "kind": "nkIdent",
+                        "ident": "stat"
+                      },
+                      "property": "message"
+                    },
+                    "args": []
+                  },
+                  "property": "print"
+                },
+                "args": []
+              }
+            },
+            {
+              "kind": "nkExprStmt",
+              "expr": {
+                "kind": "nkAssign",
+                "declType": "dtDef",
+                "assignOp": "=",
+                "target": {
+                  "kind": "nkIdent",
+                  "ident": "myStruct"
+                },
+                "value": {
+                  "kind": "nkCall",
+                  "function": {
+                    "kind": "nkIdent",
+                    "ident": "newMyStruct"
+                  },
+                  "args": [
+                    {
+                      "kind": "nkAssign",
+                      "declType": "dtNone",
+                      "assignOp": "=",
+                      "target": {
+                        "kind": "nkIdent",
+                        "ident": "x"
+                      },
+                      "value": {
+                        "kind": "nkNumber",
+                        "numVal": "10"
+                      },
+                      "varType": "",
+                      "varTypeModifier": "\u0000"
+                    },
+                    {
+                      "kind": "nkAssign",
+                      "declType": "dtNone",
+                      "assignOp": "=",
+                      "target": {
+                        "kind": "nkIdent",
+                        "ident": "y"
+                      },
+                      "value": {
+                        "kind": "nkNumber",
+                        "numVal": "20"
+                      },
+                      "varType": "",
+                      "varTypeModifier": "\u0000"
+                    }
+                  ]
+                },
+                "varType": "",
+                "varTypeModifier": "\u0000"
+              }
+            },
+            {
+              "kind": "nkExprStmt",
+              "expr": {
+                "kind": "nkCall",
+                "function": {
+                  "kind": "nkIdent",
+                  "ident": "print"
+                },
+                "args": [
+                  {
+                    "kind": "nkProperty",
+                    "object": {
+                      "kind": "nkIdent",
+                      "ident": "myStruct"
+                    },
+                    "property": "x"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "nkExprStmt",
+              "expr": {
+                "kind": "nkCall",
+                "function": {
+                  "kind": "nkIdent",
+                  "ident": "print"
+                },
+                "args": [
+                  {
+                    "kind": "nkProperty",
+                    "object": {
+                      "kind": "nkIdent",
+                      "ident": "myStruct"
+                    },
+                    "property": "y"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "nkExprStmt",
+              "expr": {
+                "kind": "nkCall",
+                "function": {
+                  "kind": "nkIdent",
+                  "ident": "print"
+                },
+                "args": [
+                  {
+                    "kind": "nkProperty",
+                    "object": {
+                      "kind": "nkIdent",
+                      "ident": "myStruct"
+                    },
+                    "property": "z"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "public": true
+      }
+    ]
+  },
+  "namespaces": {},
+  "META": {
+    "sourceLang": "Ryton",
+    "sourceLangVersion": "1.0",
+    "sourceFile": "name.rbt.ryton",
+    "outputFile": "name.rbt.rbt",
+    "generatorName": "RBTGENCL",
+    "generatorVersion": "0.2.5",
+    "projectName": "RytonProject",
+    "projectAuthor": "RytonCompiler",
+    "projectVersion": "1.0.0"
+  }
+}

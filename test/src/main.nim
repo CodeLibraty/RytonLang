@@ -14,12 +14,12 @@ import std/Info
 import std/Paths
 import std/fStrings
 type
-  myStruct* = object
+  MyStruct* = object
     x*: Int
     y*: Int
     z*: Int
 
-proc newmyStruct*(x: Int, y: Int, z: Int = 10): myStruct =
+proc newMyStruct*(x: Int, y: Int, z: Int = 10): MyStruct =
   result.x = x
   result.y = y
   result.z = z
@@ -36,10 +36,10 @@ proc message*(this: Status, ): String =
   elif this == Error:
     return "Operation failed"
 
-proc Main*[T](): T =
+proc Main*[T: Sas](data: T): Array[T] =
   var stat: Status = Success
   stat.message().print()
-  var myStruct = newmyStruct(x = 10, y = 20)
+  var myStruct = newMyStruct(x = 10, y = 20)
   print(myStruct.x)
   print(myStruct.y)
   print(myStruct.z)
